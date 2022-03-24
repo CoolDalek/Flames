@@ -80,7 +80,7 @@ trait Worker[T](using val runtime: WorkersRuntime) {
               }
             }
           case Stop =>
-            runtime.reportFailure(DeadWorker) // Most likely cannot happen
+            runtime.reportFailure(WorkerDead) // Most likely cannot happen
           case Pass => ()
         }
       }
