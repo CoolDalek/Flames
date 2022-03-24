@@ -4,6 +4,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicReference
 import scala.util.control.NonFatal
 
+//All commented inlines must be uncommented when Scala3 will have more stable inlining
 trait Worker[T](using val runtime: WorkersRuntime) {
 
   sealed trait Behavior
@@ -79,7 +80,7 @@ trait Worker[T](using val runtime: WorkersRuntime) {
               }
             }
           case Stop =>
-            runtime.reportFailure(Undelivered(messages.poll()))
+            runtime.reportFailure(DeadWorker) // Most likely cannot happen
           case Pass => ()
         }
       }
