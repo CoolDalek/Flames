@@ -16,8 +16,9 @@ trait AskWorker[F[_]] {
 
 object AskWorker extends SummonerK[AskWorker] {
 
-  private[concurrent] class PromiseWorker[T](promise: Promise[T], timeout: FiniteDuration)
-                                            (using runtime: WorkersRuntime) extends Worker[T] {
+  private[concurrent] class PromiseWorker[T](promise: Promise[T],
+                                             timeout: FiniteDuration)
+                                            (using WorkersRuntime) extends Worker[T] {
 
     private val deadline =
       runtime.schedule(timeout) {
