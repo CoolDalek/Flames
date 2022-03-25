@@ -14,7 +14,7 @@ trait Worker[T](using val runtime: WorkersRuntime) {
 
   extension (behavior: Behavior) {
 
-    private inline def handleWith(handler: Throwable => Behavior): Behavior =
+    inline private def handleWith(handler: Throwable => Behavior): Behavior =
       /*inline*/ behavior match {
         case Receive(act) =>
           receive { message =>

@@ -13,5 +13,5 @@ trait Wrap[F[_]] {
 object Wrap extends SummonerK[Wrap]
 
 given (using ec: ExecutionContext): Wrap[Future] = new Wrap[Future] {
-  override inline def wrap[T](value: => T): Future[T] = Future(value)
+  inline override def wrap[T](value: => T): Future[T] = Future(value)
 }

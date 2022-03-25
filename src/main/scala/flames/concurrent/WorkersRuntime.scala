@@ -1,5 +1,7 @@
 package flames.concurrent
 
+import flames.util.FailureReporter
+
 import java.util.{Timer, TimerTask}
 import java.util.concurrent.Executor
 import scala.concurrent.ExecutionContext
@@ -9,11 +11,11 @@ final class WorkersRuntime private(
                                     ec: ExecutionContext,
                                     timer: Timer,
                                     reporter: FailureReporter,
-                                  ) extends ExecutionContext with AutoCloseable {
+                                  ) extends ExecutionContext with AutoCloseable with FailureReporter {
   export ec.execute
   export reporter.reportFailure
 
-  inline def execute[T](action: => T): Unit = ec.execute(() => action)
+  inline def execute[T](inline action: => T): Unit = ec.execute(() => action)
 
   override def close(): Unit = {
     timer.cancel()
@@ -27,13 +29,13 @@ final class WorkersRuntime private(
 
     override def cancel(): Boolean = {
       val result = super.cancel()
-      cancelled = result
+      cancelled = result || cancelled
       result
     }
 
   }
 
-  private inline def schedule[T](action: => T)(how: TimerTask => Unit): Cancellable = {
+  inline private def schedule[T](action: => T)(inline how: TimerTask => Unit): Cancellable = {
     val task: Scheduled = () => action
     how(task)
     task
@@ -66,7 +68,7 @@ object WorkersRuntime {
 
   def apply(reporter: FailureReporter): WorkersRuntime =
     new WorkersRuntime(
-      fromExecutor(defaultExecutor, reporter),
+      fromExecutor(defaultExecutor, reporter.reportFailure),
       defaultTimer,
       reporter,
     )
@@ -87,7 +89,7 @@ object WorkersRuntime {
 
   def apply(reporter: FailureReporter, timer: Timer): WorkersRuntime =
     new WorkersRuntime(
-      fromExecutor(defaultExecutor, reporter),
+      fromExecutor(defaultExecutor, reporter.reportFailure),
       timer,
       reporter,
     )

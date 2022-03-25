@@ -5,8 +5,9 @@ ThisBuild / scalaVersion := "3.1.1"
 lazy val root = (project in file("."))
   .settings(
     name := "Flames",
+    resolvers ++= Dependencies.resolvers,
     libraryDependencies ++= Seq(
-      "org.joml" % "joml" % "1.10.4",
-      "org.jbox2d" % "jbox2d-library" % "2.2.1.1",
-    ),
+      Dependencies.JBox2D(),
+      Dependencies.JOML(),
+    ) ++ Dependencies.Lwjgl() ++ Dependencies.Skija(),
   )
