@@ -2,7 +2,7 @@ package flames.ui
 
 trait SyncScreen extends Screen {
 
-  override final def render(delta:  Float): Unit = {
+  final override def render(delta:  Float): Unit = {
     view(delta)
     update(delta)
   }

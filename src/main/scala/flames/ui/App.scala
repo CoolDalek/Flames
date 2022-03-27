@@ -27,19 +27,19 @@ final class App private(
 
   private var current: Screen = initialScreen.make(context)
 
-  override final def resize(width: Int, height: Int): Unit =
+  final override def resize(width: Int, height: Int): Unit =
     current.resize(width, height)
 
-  override final def render(delta: Float): Unit =
+  final override def render(delta: Float): Unit =
     current.render(delta)
 
-  override final def pause(): Unit =
+  final override def pause(): Unit =
     current.pause()
 
-  override final def resume(): Unit =
+  final override def resume(): Unit =
     current.resume()
 
-  override final def close(): Unit =
+  final override def close(): Unit =
     current.close()
 
 }
