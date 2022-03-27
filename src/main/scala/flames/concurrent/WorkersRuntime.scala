@@ -8,14 +8,15 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
 final class WorkersRuntime private(
-                                    ec: ExecutionContext,
+                                    executionContext: ExecutionContext,
                                     timer: Timer,
                                     reporter: FailureReporter,
+                                    executorFactory: WorkerExecutor.Factory,
                                   ) extends ExecutionContext with AutoCloseable with FailureReporter {
-  export ec.execute
+  export executionContext.execute
   export reporter.reportFailure
 
-  inline def execute[T](inline action: => T): Unit = ec.execute(() => action)
+  inline def execute[T](inline action: => T): Unit = executionContext.execute(() => action)
 
   override def close(): Unit = {
     timer.cancel()
@@ -50,10 +51,14 @@ final class WorkersRuntime private(
     schedule(action) { task =>
       timer.schedule(task, delay.toMillis, period.toMillis)
     }
+
+  private[concurrent] def makeExecutor[T](act: Behavior[T]): WorkerExecutor[T] =
+    executorFactory[T](act, this)
   
 }
 object WorkersRuntime {
   import ExecutionContext.*
+  import WorkerExecutor.*
 
   private inline def defaultExecutor: Executor = null.asInstanceOf[Executor]
   private val defaultReporter: FailureReporter = _.printStackTrace()
@@ -64,13 +69,31 @@ object WorkersRuntime {
      fromExecutor(defaultExecutor),
      defaultTimer,
      defaultReporter,
+     defaultFactory,
    )
+
+  def apply(executorFactory: WorkerExecutor.Factory): WorkersRuntime =
+    new WorkersRuntime(
+      fromExecutor(defaultExecutor),
+      defaultTimer,
+      defaultReporter,
+      executorFactory,
+    )
 
   def apply(reporter: FailureReporter): WorkersRuntime =
     new WorkersRuntime(
       fromExecutor(defaultExecutor, reporter.reportFailure),
       defaultTimer,
       reporter,
+      defaultFactory,
+    )
+
+  def apply(reporter: FailureReporter, executorFactory: WorkerExecutor.Factory): WorkersRuntime =
+    new WorkersRuntime(
+      fromExecutor(defaultExecutor, reporter.reportFailure),
+      defaultTimer,
+      reporter,
+      executorFactory,
     )
 
   def apply(timer: Timer): WorkersRuntime =
@@ -78,13 +101,31 @@ object WorkersRuntime {
       fromExecutor(defaultExecutor),
       timer,
       defaultReporter,
+      defaultFactory,
     )
 
-  def apply(ec: ExecutionContext): WorkersRuntime =
+  def apply(timer: Timer, executorFactory: WorkerExecutor.Factory): WorkersRuntime =
     new WorkersRuntime(
-      ec,
+      fromExecutor(defaultExecutor),
+      timer,
+      defaultReporter,
+      executorFactory,
+    )
+
+  def apply(executionContext: ExecutionContext): WorkersRuntime =
+    new WorkersRuntime(
+      executionContext,
       defaultTimer,
-      ec.reportFailure,
+      executionContext.reportFailure,
+      defaultFactory,
+    )
+
+  def apply(executionContext: ExecutionContext, executorFactory: WorkerExecutor.Factory): WorkersRuntime =
+    new WorkersRuntime(
+      executionContext,
+      defaultTimer,
+      executionContext.reportFailure,
+      executorFactory,
     )
 
   def apply(reporter: FailureReporter, timer: Timer): WorkersRuntime =
@@ -92,13 +133,31 @@ object WorkersRuntime {
       fromExecutor(defaultExecutor, reporter.reportFailure),
       timer,
       reporter,
+      defaultFactory,
     )
 
-  def apply(ec: ExecutionContext, timer: Timer): WorkersRuntime =
+  def apply(reporter: FailureReporter, timer: Timer, executorFactory: WorkerExecutor.Factory): WorkersRuntime =
     new WorkersRuntime(
-      ec,
+      fromExecutor(defaultExecutor, reporter.reportFailure),
       timer,
-      ec.reportFailure,
+      reporter,
+      executorFactory,
+    )
+
+  def apply(executionContext: ExecutionContext, timer: Timer): WorkersRuntime =
+    new WorkersRuntime(
+      executionContext,
+      timer,
+      executionContext.reportFailure,
+      defaultFactory,
+    )
+
+  def apply(executionContext: ExecutionContext, timer: Timer, executorFactory: WorkerExecutor.Factory): WorkersRuntime =
+    new WorkersRuntime(
+      executionContext,
+      timer,
+      executionContext.reportFailure,
+      executorFactory,
     )
 
 }
