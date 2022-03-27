@@ -8,9 +8,9 @@ object Renderer {
   case class OpenGL private(major: Int, minor: Int) extends Renderer
   object OpenGL {
 
-    inline def apply[Major <: Int: ValueOf, Minor <: Int: ValueOf]: OpenGL = {
-      val maj = valueOf[Major]
-      val min = valueOf[Minor]
+    private def make(maj: Int, min: Int): OpenGL = new OpenGL(maj, min)
+
+    inline def apply(inline maj: Int, inline min: Int): OpenGL = {
       inline val maxMinor = inline maj match {
         case 1 => 5
         case 2 => 1
@@ -21,7 +21,7 @@ object Renderer {
       inline if(min < 0 || min > maxMinor) {
         error("Invalid minor OpenGL version")
       } else {
-        OpenGL(maj, min)
+        make(maj, min)
       }
     }
   }
