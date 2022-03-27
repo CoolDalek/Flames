@@ -27,6 +27,7 @@ extension [T](behavior: Behavior[T]) {
 
   inline def onFailure(inline handler: PartialFunction[Throwable, Behavior[T]]): Behavior[T] =
     handleWith { exc =>
+      // "orElse" branch in applyOrElse, for some reason, is not lazy
       if(handler.isDefinedAt(exc)) handler(exc)
       else throw exc
     }
