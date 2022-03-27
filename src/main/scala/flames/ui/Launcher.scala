@@ -199,7 +199,7 @@ object Launcher {
 
     } catch {
       case NonFatal(exc) =>
-        exc.printStackTrace()
+        config.failureReporter.reportFailure(exc)
     } finally {
       glfwFreeCallbacks(window)
       glfwDestroyWindow(window)
