@@ -13,12 +13,20 @@ import org.lwjgl.system.*
 
 import java.io.PrintStream
 import java.util
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.util.control.NonFatal
 
 object Launcher {
 
-  def run(config: LauncherConfig, factory: (FailureReporter, Canvas) => UIListener): Unit = {
+  private val toClose: mutable.Stack[AutoCloseable] = mutable.Stack.empty[AutoCloseable]
 
+  inline private def use[T <: AutoCloseable](inline value: T): T = {
+    toClose.push(value)
+    value
+  }
+
+  private def initGlfw(config: LauncherConfig): Unit = {
     new GLFWErrorCallback() {
       private val errorCodes: util.Map[Integer, String] =
         org.lwjgl.system.APIUtil.apiClassTokens(
@@ -36,14 +44,17 @@ object Launcher {
     }.set()
 
     if(!glfwInit()) throw IllegalStateException("Cannot init GLFW")
+  }
 
+  inline private val stencilBits = 0
+
+  private def makeWindow(config: LauncherConfig): Long = {
     config.renderer match {
       case Renderer.OpenGL(major, minor) =>
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major)
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor)
     }
 
-    val stencilBits = 0
     glfwWindowHint(GLFW_STENCIL_BITS, stencilBits)
     glfwWindowHint(GLFW_DEPTH_BITS, 0)
 
@@ -89,24 +100,28 @@ object Launcher {
     }
 
     if(window == NULL) throw RuntimeException("Failed to create GLFW window")
+    window
+  }
 
-    try {
+  private def makeContext(window: Long): DirectContext = {
+    glfwMakeContextCurrent(window)
+    glfwSwapInterval(1)
+    GL.createCapabilities()
 
-      glfwMakeContextCurrent(window)
-      glfwSwapInterval(1)
-      GL.createCapabilities()
+    if(sys.props.get("skija.staticload").contains("false"))
+      SkjaLib.load()
+    use(DirectContext.makeGL())
+  }
 
-      if(sys.props.get("skija.staticload").contains("false"))
-        SkjaLib.load()
-      val context = DirectContext.makeGL()
+  private def makeCanvas(window: Long, context: DirectContext): Canvas = {
+    val stack = MemoryStack.stackPush()
+    val width = stack.mallocInt(1)
+    val height = stack.mallocInt(1)
 
-      val stack = MemoryStack.stackPush()
-      val width = stack.mallocInt(1)
-      val height = stack.mallocInt(1)
+    glfwGetFramebufferSize(window, width, height)
 
-      glfwGetFramebufferSize(window, width, height)
-
-      val renderTarget = BackendRenderTarget.makeGL(
+    val renderTarget = use {
+      BackendRenderTarget.makeGL(
         width.get(0),
         height.get(0),
         0,
@@ -114,15 +129,30 @@ object Launcher {
         0,
         FramebufferFormat.GR_GL_RGBA8,
       )
-      val surface = Surface.makeFromBackendRenderTarget(
+    }
+    val surface = use {
+      Surface.makeFromBackendRenderTarget(
         context,
         renderTarget,
         SurfaceOrigin.BOTTOM_LEFT,
         SurfaceColorFormat.RGBA_8888,
         ColorSpace.getSRGB,
       )
-      val canvas = surface.getCanvas
-      val app = factory(config.failureReporter, canvas)
+    }
+    use(surface.getCanvas)
+  }
+
+  def run(config: LauncherConfig, makeApp: (FailureReporter, Canvas) => UIListener): Unit = {
+
+    initGlfw(config)
+    val window = makeWindow(config)
+
+    try {
+      val context = makeContext(window)
+      val canvas = makeCanvas(window, context)
+      val app = use {
+        makeApp(config.failureReporter, canvas)
+      }
 
       glfwShowWindow(window)
 
@@ -130,10 +160,14 @@ object Launcher {
         override def invoke(window: Long, width: Int, height: Int): Unit = app.resize(width, height)
       }.set(window)
 
+      var focused = true
+
       new GLFWWindowFocusCallback() {
-        override def invoke(window: Long, focused: Boolean): Unit =
-          if(focused) app.resume()
+        override def invoke(window: Long, focusedSignal: Boolean): Unit = {
+          focused = focusedSignal
+          if (focused) app.resume()
           else app.pause()
+        }
       }.set(window)
 
       try {
@@ -143,16 +177,17 @@ object Launcher {
           val current = System.nanoTime()
           delta = (current - lastFrame) / 1000000000f
           lastFrame = current
-          app.render(delta)
-          context.flush()
-          glfwSwapBuffers(window)
-          glfwPollEvents()
+          if(focused) {
+            app.render(delta)
+            context.flush()
+            glfwSwapBuffers(window)
+            glfwPollEvents()
+          } else {
+            glfwWaitEvents()
+          }
         }
       } finally {
-        app.close()
-        surface.close()
-        renderTarget.close()
-        context.close()
+        toClose.foreach(_.close())
       }
 
     } catch {
