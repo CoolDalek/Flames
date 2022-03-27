@@ -7,4 +7,6 @@ case class LauncherConfig(
                            size: WindowSize,
                            renderer: Renderer,
                            failureReporter: FailureReporter,
-                         )
+                         ) extends FailureReporter {
+  export failureReporter.reportFailure
+}

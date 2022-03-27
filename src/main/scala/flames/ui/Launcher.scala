@@ -142,7 +142,7 @@ object Launcher {
     use(surface.getCanvas)
   }
 
-  def run(config: LauncherConfig, makeApp: (FailureReporter, Canvas) => UIListener): Unit = {
+  def run(config: LauncherConfig, makeApp: (FailureReporter, Canvas) => UIListener): Unit = try {
 
     initGlfw(config)
     val window = makeWindow(config)
@@ -199,7 +199,7 @@ object Launcher {
 
     } catch {
       case NonFatal(exc) =>
-        config.failureReporter.reportFailure(exc)
+        config.reportFailure(exc)
     } finally {
       glfwFreeCallbacks(window)
       glfwDestroyWindow(window)
@@ -208,6 +208,9 @@ object Launcher {
       if(reporter != null) reporter.free()
     }
 
+  } catch {
+    case NonFatal(exc) =>
+      config.reportFailure(exc)
   }
 
 }
