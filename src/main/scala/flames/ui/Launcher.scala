@@ -156,28 +156,35 @@ object Launcher {
 
       glfwShowWindow(window)
 
-      new GLFWFramebufferSizeCallback() {
-        override def invoke(window: Long, width: Int, height: Int): Unit = app.resize(width, height)
-      }.set(window)
-
-      var focused = true
-
-      new GLFWWindowFocusCallback() {
-        override def invoke(window: Long, focusedSignal: Boolean): Unit = {
-          focused = focusedSignal
-          if (focused) app.resume()
-          else app.pause()
-        }
-      }.set(window)
-
       try {
+
+        new GLFWFramebufferSizeCallback() {
+          override def invoke(window: Long, width: Int, height: Int): Unit = app.resize(width, height)
+        }.set(window)
+
+        var focused = true
         var lastFrame = System.nanoTime()
         var delta = 0f
+
+        new GLFWWindowFocusCallback() {
+          override def invoke(window: Long, signal: Boolean): Unit = {
+            focused = signal
+            if (focused) {
+              lastFrame = System.nanoTime()
+              delta = 0f
+              app.resume()
+            }
+            else {
+              app.pause()
+            }
+          }
+        }.set(window)
+
         while(!glfwWindowShouldClose(window)) {
-          val current = System.nanoTime()
-          delta = (current - lastFrame) / 1000000000f
-          lastFrame = current
           if(focused) {
+            val current = System.nanoTime()
+            delta = (current - lastFrame) / 1000000000f
+            lastFrame = current
             app.render(delta)
             context.flush()
             glfwSwapBuffers(window)
