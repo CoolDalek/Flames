@@ -25,7 +25,7 @@ object AskWorker extends SummonerK[AskWorker] {
         promise.failure(new TimeoutException)
       }
 
-    override def act(): Behavior =
+    override def act(): Behavior[T] =
       receive { result =>
         deadline.cancel()
         promise.success(result)
