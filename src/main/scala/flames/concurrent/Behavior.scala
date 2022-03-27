@@ -10,7 +10,7 @@ enum Behavior[+T] {
 import Behavior.*
 extension [T](behavior: Behavior[T]) {
 
-  inline def handleWith(inline handler: Throwable => Behavior[T]): Behavior[T] = {
+  inline private def handleWith(inline handler: Throwable => Behavior[T]): Behavior[T] = {
     inline behavior match {
       case receive: Receive[T] =>
         inline val act = receive.act
