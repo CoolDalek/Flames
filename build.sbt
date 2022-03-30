@@ -7,6 +7,7 @@ lazy val root = (project in file("."))
     name := "Flames",
     resolvers ++= Dependencies.resolvers,
     libraryDependencies ++= Seq(
+      "com.lihaoyi" %% "sourcecode" % "0.2.8",
       Dependencies.JBox2D(),
       Dependencies.JOML(),
     ) ++ Dependencies.Lwjgl() ++ Dependencies.Skija(),

@@ -1,9 +1,9 @@
 package flames.ui
 
-import flames.concurrent.{Behavior, Worker}
+import flames.concurrent.Behavior
 import java.util.concurrent.atomic.AtomicReference
 
-trait AsyncScreen[T] extends Screen with Worker[T] {
+trait AsyncScreen[T] extends Screen {
   type State
   protected def initialState: State
   private lazy val state = AtomicReference(initialState)
@@ -27,7 +27,7 @@ trait AsyncScreen[T] extends Screen with Worker[T] {
 
   def view(delta: Float)(using Get): Unit
 
-  final override def act(): Behavior[T] = {
+  final def act(): Behavior[T] = {
     given Set = new Set {}
     update()
   }
