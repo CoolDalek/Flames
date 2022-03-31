@@ -7,29 +7,19 @@ import flames.util.Logger
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
-case class ActorRuntime(
-                         logger: Logger,
-                         scheduler: Scheduler,
-                         autoYieldCount: Int = 8,
-                         autoYieldTime: Option[FiniteDuration] = None,
-                       ) extends ActorScheduler {
+final class ActorRuntime private(
+                                  makeLogger: ActorRuntime ?=> Logger,
+                                  scheduler: Scheduler,
+                                  val autoYieldCount: Int = 8,
+                                  val autoYieldTime: Option[FiniteDuration] = None,
+                                ) extends ActorScheduler {
   export scheduler.*
+  private given ActorRuntime = this
 
-  private val refs = TrieMap.empty[ActorPath[Nothing], ActorRef[Nothing]]
+  val logger: Logger = makeLogger
 
-  def spawn[T](name: String, factory: ActorFactory[T]): ActorRef[T] =
-    spawn(name, ActorPath.Root, factory)
-
-  private[concurrent] def spawn[T](name: String, parent: ActorPath[Nothing], factory: ActorFactory[T]): ActorRef[T] = {
-    val actor = factory(name, parent, this)
-    refs.addOne(actor.path, actor.self)
-    actor.self
-  }
-
-  private[concurrent] def removeRef(path: ActorPath[Nothing]): Unit = refs.remove(path)
-
-  def resolve[T](path: ActorPath[T]): Option[ActorRef[T]] =
-    refs.get(path).map(_.asInstanceOf[ActorRef[T]])
+  def spawn[T](factory: ActorFactory[T]): ActorRef[T] =
+    factory.self
 
   override def scheduleMessage[T](delay: FiniteDuration, to: ActorRef[T], message: T): Cancellable =
     schedule(delay)(to.timerTell(message))

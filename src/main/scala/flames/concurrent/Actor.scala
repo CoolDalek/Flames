@@ -1,47 +1,40 @@
 package flames.concurrent
 
-type ActorFactory[T] = (String, ActorPath[Nothing], ActorRuntime) => Actor[T]
-trait Actor[T](
-                name: String,
-                parentPath: ActorPath[Nothing],
-                runtime: ActorRuntime,
-              ) { actor =>
+import flames.concurrent.ActorFiber.*
 
-  protected[concurrent] final val path: ActorPath[T] = parentPath / name
+type ActorFactory[T] = ActorRuntime ?=> Actor[T]
+trait Actor[T](using val runtime: ActorRuntime) {
 
-  private val fiber = ActorFiber(
-    runtime,
-    act(),
-    path,
-  )
-
-  protected final def childs: Set[ActorRef[Nothing]] = fiber.getChilds
+  protected[concurrent] val fiber: ActorFiber[T] = AsyncFiber(runtime, act())
 
   protected[concurrent] final val self: ActorRef[T] = new ActorRef[T] {
 
-    override def tell(message: T): Unit = userTell(message)
-
-    override def path: ActorPath[T] = actor.path
-
-    override def name: String = actor.name
+    override def tell(message: T): Unit = fiber.userTell(message)
 
     override def stop(): Unit = fiber.stop()
 
-    override private[concurrent] def timerTell(message: T): Unit = actor.timerTell(message)
+    override private[concurrent] def timerTell(message: T): Unit = fiber.timerTell(message)
 
   }
 
-  protected final def spawn[R](name: String, factory: ActorFactory[R]): ActorRef[R] = {
-    val child = runtime.spawn(name, path, factory)
+  sealed trait StateAccess
+
+  protected final def childs(using StateAccess): Set[ActorRef[Nothing]] = fiber.getChilds
+
+  protected final def spawn[R](factory: ActorFactory[R])(using StateAccess): ActorRef[R] = {
+    val child = runtime.spawn(factory)
     fiber.addChild(child)
     child
   }
 
-  private[concurrent] final def userTell(message: T): Unit =
-    fiber.userTell(message)
+  inline protected def receive[T](inline act: StateAccess ?=> T => Behavior[T]): Behavior[T] = {
+    given StateAccess = new StateAccess {}
+    Behavior.Receive(act)
+  }
 
-  private[concurrent] final def timerTell(message: T): Unit =
-    fiber.timerTell(message)
+  inline protected def same: Behavior[T] = Behavior.Same
+
+  inline protected def stop: Behavior[T] = Behavior.Stop
 
   def act(): Behavior[T]
 

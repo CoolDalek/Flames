@@ -6,11 +6,10 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.control.NonFatal
 
-final class ActorFiber[T] private[concurrent](
-                                               private val runtime: ActorRuntime, 
-                                               private var behavior: Behavior[T],
-                                               private val path: ActorPath[T],
-                                             ) {
+private[concurrent] sealed trait ActorFiber[T](
+                                                protected final val runtime: ActorRuntime,
+                                                private var behavior: Behavior[T],
+                                              ) {
 
   enum FiberState {
     case Stop extends FiberState
@@ -29,19 +28,17 @@ final class ActorFiber[T] private[concurrent](
   private val state = AtomicReference[FiberState](FiberState.Idle)
   private val childs = mutable.Set.empty[ActorRef[Nothing]]
 
-  private[concurrent] def addChild(actor: ActorRef[Nothing]): Unit =
+  private[concurrent] final def addChild(actor: ActorRef[Nothing]): Unit =
     childs + actor
 
-  private[concurrent] def getChilds: Set[ActorRef[Nothing]] =
+  private[concurrent] final def getChilds: Set[ActorRef[Nothing]] =
     childs to Set
 
-  private def stopCleanup(): Unit = {
+  private def stopCleanup(): Unit =
     childs.foreach(_.stop())
-    runtime.removeRef(path)
-  }
 
   @tailrec
-  private[concurrent] def stop(): Unit = {
+  private[concurrent] final def stop(): Unit = {
     import FiberState.*
     state.get() match {
       case Idle =>
@@ -54,9 +51,9 @@ final class ActorFiber[T] private[concurrent](
     }
   }
 
-  private[concurrent] def timerTell(message: T): Unit = tell(timerQueue, message)
+  private[concurrent] final def timerTell(message: T): Unit = tell(timerQueue, message)
 
-  private[concurrent] def userTell(message: T): Unit = tell(userQueue, message)
+  private[concurrent] final def userTell(message: T): Unit = tell(userQueue, message)
 
   private def tell(queue: ConcurrentLinkedQueue[T], message: T): Unit = {
     import FiberState.*
@@ -84,13 +81,12 @@ final class ActorFiber[T] private[concurrent](
     if (state.compareAndSet(Idle, Running)) run()
   }
 
-  private def run(): Unit =
-    runtime.execute {
-      loop(
-        runtime.autoYieldCount,
-        deadlineTime(),
-      )
-    }
+  protected def run(): Unit
+
+  protected inline def loop(): Unit = loop(
+    runtime.autoYieldCount,
+    deadlineTime()
+  )
 
   private def loop(maxMessages: Int, deadline: Long): Unit = {
     import ProcessResult.*
@@ -110,7 +106,7 @@ final class ActorFiber[T] private[concurrent](
             loop = false
         }
 
-      if (yieldCount > 0 && System.nanoTime() > deadline) {
+      if (yieldCount > 0 && System.nanoTime() < deadline) {
         process(timerQueue) {
           process(userQueue) {
             state.set(FiberState.Idle)
@@ -154,6 +150,29 @@ final class ActorFiber[T] private[concurrent](
         }
       }
     } else ProcessResult.Break
+  }
+
+}
+object ActorFiber {
+
+  private[concurrent] final class BlockingFiber[T](
+                                                    runtime: ActorRuntime,
+                                                    behavior: Behavior[T],
+                                                  ) extends ActorFiber[T](runtime, behavior) {
+    override protected def run(): Unit =
+      runtime.execute {
+        loop()
+      }
+  }
+
+  private[concurrent] final class AsyncFiber[T](
+                                                 runtime: ActorRuntime,
+                                                 behavior: Behavior[T],
+                                               ) extends ActorFiber[T](runtime, behavior) {
+    override protected def run(): Unit =
+      runtime.blocking {
+        loop()
+      }
   }
 
 }

@@ -6,6 +6,8 @@ import scala.concurrent.duration.FiniteDuration
 trait Scheduler extends ExecutionContext with AutoCloseable {
 
   inline def execute(inline action: => Unit): Unit = execute(() => action)
+  
+  def blocking(action: => Unit): Unit
 
   def schedule[T](delay: FiniteDuration)(action: => T): Cancellable
 
