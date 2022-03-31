@@ -8,6 +8,9 @@ import flames.util.Logger.LogLevel
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.atomic.AtomicInteger
+
 sealed trait ActorRuntime extends ActorScheduler {
   protected given ActorRuntime = this
 
@@ -17,8 +20,13 @@ sealed trait ActorRuntime extends ActorScheduler {
 
   def logger: Logger
 
+  protected def pinnedActorThreadFactory: ThreadFactory
+
   def spawn[T](factory: ActorFactory[T]): ActorRef[T] =
     factory.self
+
+  private[concurrent] def pinnedThread[T](run: => T): Thread =
+    pinnedActorThreadFactory.newThread(() => run)
 
   override def scheduleMessage[T](delay: FiniteDuration, to: ActorRef[T], message: T): Cancellable =
     schedule(delay)(to.timerTell(message))
@@ -31,11 +39,14 @@ object ActorRuntime {
 
   val defaultYieldTime: Option[FiniteDuration] = None
   val defaultYieldCount: Int = 8
+  def defaultPinnedActorThreadFactory(logger: Logger): ThreadFactory =
+    DefaultThreadFactory("Pinned", Logger.asUncaughtExceptionHandler(logger))
 
   private class SimpleRuntime(
                                val logger: Logger,
                                val autoYieldCount: Int,
                                val autoYieldTime: Option[FiniteDuration],
+                               val pinnedActorThreadFactory: ThreadFactory,
                                scheduler: Scheduler
                              ) extends ActorRuntime {
     export scheduler.*
@@ -43,9 +54,16 @@ object ActorRuntime {
 
   def apply(logger: Logger,
             scheduler: Scheduler,
+            pinnedActorThreadFactory: ThreadFactory,
             autoYieldCount: Int = defaultYieldCount,
             autoYieldTime: Option[FiniteDuration] = defaultYieldTime): ActorRuntime =
-    new SimpleRuntime(logger, autoYieldCount, autoYieldTime, scheduler)
+    new SimpleRuntime(
+      logger = logger,
+      autoYieldCount = autoYieldCount,
+      autoYieldTime = autoYieldTime,
+      pinnedActorThreadFactory = pinnedActorThreadFactory,
+      scheduler = scheduler,
+    )
 
   def default(logLevel: LogLevel): ActorRuntime =
     new ActorRuntime {
@@ -58,6 +76,10 @@ object ActorRuntime {
       val scheduler: Scheduler = Scheduler.default(logger)
       
       export scheduler.*
+
+      val pinnedActorThreadFactory: ThreadFactory =
+        defaultPinnedActorThreadFactory(logger)
+      
     }
 
 

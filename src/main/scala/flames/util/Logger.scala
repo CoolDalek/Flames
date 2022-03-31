@@ -4,6 +4,7 @@ import sourcecode.*
 import Logger.*
 import Logger.LogLevel.*
 
+import java.lang.Thread.UncaughtExceptionHandler
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import Ordering.Implicits.*
@@ -110,5 +111,8 @@ object Logger {
   type Message = String | Null
   type Failure = Throwable | Null
   case class LogEvent(prefix: String, msg: Message, exc: Failure)
+
+  def asUncaughtExceptionHandler(logger: Logger, logLevel: LogLevel = Error): UncaughtExceptionHandler =
+    (t: Thread, e: Throwable) => logger.log(logLevel, s"Unexpected exception in thread ${t.getName}.", e)
 
 }

@@ -1,8 +1,8 @@
 package flames.concurrent
 
-trait BlockingActor[T](using ActorRuntime) extends Actor[T] {
+trait PinnedActor[T](using ActorRuntime) extends Actor[T] {
   
   final override protected[concurrent] val fiber: ActorFiber[T] =
-    BlockingFiber(runtime, act())
+    PinnedFiber(runtime, act())
   
 }

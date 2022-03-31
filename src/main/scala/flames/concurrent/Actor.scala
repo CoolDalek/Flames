@@ -1,7 +1,5 @@
 package flames.concurrent
 
-import flames.concurrent.ActorFiber.*
-
 type ActorFactory[T] = ActorRuntime ?=> Actor[T]
 trait Actor[T](using val runtime: ActorRuntime) {
 

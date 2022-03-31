@@ -4,13 +4,16 @@ import flames.concurrent.ActorLogger.*
 import flames.util.Logger
 import flames.util.Logger.*
 
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 final class ActorLogger(override val logLevel: LogLevel)
                        (using ActorRuntime) extends BlockingActor[LogEvent] with Logger {
-  
+
   override val timestampFormat: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
+    DateTimeFormatter.ofPattern(
+      "yyyy-MM-dd HH:mm:ss.SSS"
+    ).withZone(ZoneId.systemDefault)
 
   override def log(event: LogEvent): Unit = self.tell(event)
 

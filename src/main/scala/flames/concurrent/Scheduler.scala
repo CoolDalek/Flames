@@ -39,35 +39,15 @@ object Scheduler {
                interruptOnCancel: Boolean = false,
              ): Scheduler = new Scheduler {
 
-    private val reporter = new UncaughtExceptionHandler {
-      override def uncaughtException(t: Thread, e: Throwable): Unit =
-        logger.error(e, s"Unexpected exception in thread ${t.getName}.")
-    }
+    private val reporter = Logger.asUncaughtExceptionHandler(logger)
 
-    private class Factory(poolName: String, priority: Int) extends ForkJoinPool.ForkJoinWorkerThreadFactory with ThreadFactory {
-      private val count = AtomicInteger(0)
-
-      private def configure[T <: Thread](instance: T): T = {
-        instance.setName(s"$poolName-${count.getAndIncrement}")
-        instance.setDaemon(true)
-        instance.setUncaughtExceptionHandler(reporter)
-        instance.setPriority(priority)
-        instance
-      }
-
-      private class FjkThread(pool: ForkJoinPool) extends ForkJoinWorkerThread(pool)
-
-      override def newThread(pool: ForkJoinPool): ForkJoinWorkerThread =
-        configure(FjkThread(pool))
-
-      override def newThread(r: Runnable): Thread =
-        configure(Thread(r))
-    }
+    private def factory(poolName: String, priority: Int = Thread.NORM_PRIORITY): DefaultThreadFactory =
+      DefaultThreadFactory(poolName, reporter, priority)
 
     private val timer =
       ScheduledThreadPoolExecutor(
         timerThreads,
-        Factory("Timer", Thread.MAX_PRIORITY),
+        factory("Timer", Thread.MAX_PRIORITY),
       ).tap { pool =>
         pool.setKeepAliveTime(keepAlive.length, keepAlive.unit)
         pool.setRemoveOnCancelPolicy(true)
@@ -80,13 +60,13 @@ object Scheduler {
         keepAlive.length,
         keepAlive.unit,
         SynchronousQueue[Runnable](),
-        Factory("Blocking", Thread.NORM_PRIORITY),
+        factory("Blocking"),
       )
 
     private val compute =
       new ForkJoinPool(
         minComputeThreads,
-        Factory("Compute", Thread.NORM_PRIORITY),
+        factory("Compute"),
         reporter,
         false,
         minComputeThreads,
