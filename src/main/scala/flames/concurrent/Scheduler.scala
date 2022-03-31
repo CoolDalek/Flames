@@ -19,7 +19,7 @@ trait Scheduler extends ExecutionContext with AutoCloseable {
 
   def schedule[T](delay: FiniteDuration, period: FiniteDuration)(action: => T): Cancellable
 
-  override def close(): Unit = shutdown()
+  override final def close(): Unit = shutdown()
 
   def shutdown(): Unit
 
@@ -61,15 +61,16 @@ object Scheduler {
         configure(FjkThread(pool))
 
       override def newThread(r: Runnable): Thread =
-        configure(Thread())
+        configure(Thread(r))
     }
 
     private val timer =
       ScheduledThreadPoolExecutor(
         timerThreads,
         Factory("Timer", Thread.MAX_PRIORITY),
-      ).tap {
-        _.setKeepAliveTime(keepAlive.length, keepAlive.unit)
+      ).tap { pool =>
+        pool.setKeepAliveTime(keepAlive.length, keepAlive.unit)
+        pool.setRemoveOnCancelPolicy(true)
       }
 
     private val blocker =
@@ -99,25 +100,33 @@ object Scheduler {
     override def blocking(action: => Unit): Unit =
       blocker.execute(() => action)
 
-    private def schedule[T](delay: Long, period: Long, action: => T): Cancellable = {
-      val future = timer.scheduleWithFixedDelay(
-        () => action,
-        delay,
-        period,
-        TimeUnit.NANOSECONDS,
-      )
+    private def cancellable(scheduled: ScheduledFuture[_]): Cancellable =
       new Cancellable {
-        override def isCancelled: Boolean = future.isCancelled
+        override def isCancelled: Boolean = scheduled.isCancelled
 
-        override def cancel(): Boolean = future.cancel(interruptOnCancel)
+        override def cancel(): Boolean = scheduled.cancel(interruptOnCancel)
       }
-    }
 
     override def schedule[T](delay: FiniteDuration)(action: => T): Cancellable =
-      schedule(delay.toNanos, 0, action)
+      cancellable {
+        timer.schedule(
+          new Runnable {
+            override def run(): Unit = action
+          },
+          delay.toNanos,
+          TimeUnit.NANOSECONDS,
+        )
+      }
 
     override def schedule[T](delay: FiniteDuration, period: FiniteDuration)(action: => T): Cancellable =
-      schedule(delay.toNanos, period.toNanos, action)
+      cancellable {
+        timer.scheduleWithFixedDelay(
+          () => action,
+          delay.toNanos,
+          period.toNanos,
+          TimeUnit.NANOSECONDS,
+        )
+      }
 
     override def shutdown(): Unit = {
       timer.shutdown()

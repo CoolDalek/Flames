@@ -156,9 +156,9 @@ private[concurrent] sealed trait ActorFiber[T](
 object ActorFiber {
 
   private[concurrent] final class BlockingFiber[T](
-                                                    runtime: ActorRuntime,
+                                                    _runtime: ActorRuntime,
                                                     behavior: Behavior[T],
-                                                  ) extends ActorFiber[T](runtime, behavior) {
+                                                  ) extends ActorFiber[T](_runtime, behavior) {
     override protected def run(): Unit =
       runtime.execute {
         loop()
@@ -166,9 +166,9 @@ object ActorFiber {
   }
 
   private[concurrent] final class AsyncFiber[T](
-                                                 runtime: ActorRuntime,
+                                                 _runtime: ActorRuntime,
                                                  behavior: Behavior[T],
-                                               ) extends ActorFiber[T](runtime, behavior) {
+                                               ) extends ActorFiber[T](_runtime, behavior) {
     override protected def run(): Unit =
       runtime.blocking {
         loop()

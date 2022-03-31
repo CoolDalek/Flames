@@ -8,16 +8,14 @@ import flames.util.Logger.LogLevel
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
-final class ActorRuntime private(
-                                  makeLogger: => Logger,
-                                  makeScheduler: => Scheduler,
-                                  val autoYieldCount: Int,
-                                  val autoYieldTime: Option[FiniteDuration],
-                                ) extends ActorScheduler {
-  private val logger = makeLogger
-  private val scheduler = makeScheduler
-  export scheduler.*
-  private given ActorRuntime = this
+sealed trait ActorRuntime extends ActorScheduler {
+  protected given ActorRuntime = this
+
+  def autoYieldCount: Int
+
+  def autoYieldTime: Option[FiniteDuration]
+
+  def logger: Logger
 
   def spawn[T](factory: ActorFactory[T]): ActorRef[T] =
     factory.self
@@ -31,22 +29,36 @@ final class ActorRuntime private(
 }
 object ActorRuntime {
 
+  val defaultYieldTime: Option[FiniteDuration] = None
+  val defaultYieldCount: Int = 8
+
+  private class SimpleRuntime(
+                               val logger: Logger,
+                               val autoYieldCount: Int,
+                               val autoYieldTime: Option[FiniteDuration],
+                               scheduler: Scheduler
+                             ) extends ActorRuntime {
+    export scheduler.*
+  }
+
   def apply(logger: Logger,
             scheduler: Scheduler,
-            autoYieldCount: Int = 8,
-            autoYieldTime: Option[FiniteDuration] = None): ActorRuntime =
-    new ActorRuntime(logger, scheduler, autoYieldCount, autoYieldTime)
+            autoYieldCount: Int = defaultYieldCount,
+            autoYieldTime: Option[FiniteDuration] = defaultYieldTime): ActorRuntime =
+    new SimpleRuntime(logger, autoYieldCount, autoYieldTime, scheduler)
 
-  def default(logLevel: LogLevel): ActorRuntime = {
-    lazy val runtime: ActorRuntime =
-      new ActorRuntime(logger, scheduler, 8, None)
-    lazy val logger: Logger = {
-      given ActorRuntime = runtime
-      new ActorLogger(logLevel)
+  def default(logLevel: LogLevel): ActorRuntime =
+    new ActorRuntime {
+      val autoYieldCount: Int = defaultYieldCount
+
+      val autoYieldTime: Option[FiniteDuration] = defaultYieldTime
+
+      val logger: Logger = ActorLogger(logLevel)
+
+      val scheduler: Scheduler = Scheduler.default(logger)
+      
+      export scheduler.*
     }
-    lazy val scheduler: Scheduler =
-      Scheduler.default(logger)
-    runtime
-  }
+
 
 }
