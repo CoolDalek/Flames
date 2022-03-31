@@ -5,6 +5,7 @@ import Logger.*
 import Logger.LogLevel.*
 
 import java.time.Instant
+import java.time.format.DateTimeFormatter
 import Ordering.Implicits.*
 
 trait Logger {
@@ -13,11 +14,14 @@ trait Logger {
 
   def logLevel: LogLevel
 
+  def timestampFormat: DateTimeFormatter
+
   def isEnabled(target: LogLevel): Boolean = target <= logLevel
 
   inline def log(lvl: LogLevel, msg: => Message, exc: Failure)(using enc: Enclosing, line: Line): Unit =
     if(isEnabled(lvl)) {
-      val prefix = s"[$lvl][${Instant.now()}][${enc.value}][line:${line.value}]:"
+      val timestamp = timestampFormat.format(Instant.now())
+      val prefix = s"[$lvl][$timestamp][${enc.value}][line:${line.value}]:"
       log(LogEvent(prefix, msg, exc))
     }
 
