@@ -1,10 +1,10 @@
 package flames.concurrent
 
+import flames.logging.Logger
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.*
 import scala.util.chaining.*
-import flames.util.Logger
-
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.*

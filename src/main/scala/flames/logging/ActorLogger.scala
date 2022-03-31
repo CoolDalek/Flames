@@ -1,8 +1,7 @@
-package flames.concurrent
+package flames.logging
 
-import flames.concurrent.ActorLogger.*
-import flames.util.Logger
-import flames.util.Logger.*
+import flames.concurrent.{ActorRuntime, Behavior, BlockingActor}
+import flames.logging.Logger
 
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -30,19 +29,6 @@ final class ActorLogger(override val logLevel: LogLevel)
         }
       }
       same
-  }
-
-}
-object ActorLogger {
-
-  type StackTrace = Array[StackTraceElement] | Null
-
-  extension [T](nullable: T | Null) {
-    inline def foreach(action: T => Unit) =
-      nullable match {
-        case null => ()
-        case value: T => action(value)
-      }
   }
 
 }

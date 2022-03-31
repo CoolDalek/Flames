@@ -1,13 +1,12 @@
 package flames.concurrent
 
+import flames.logging.*
+
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.ExecutionContext
-import flames.util.Logger
-import flames.util.Logger.LogLevel
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
-
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -74,12 +73,12 @@ object ActorRuntime {
       val logger: Logger = ActorLogger(logLevel)
 
       val scheduler: Scheduler = Scheduler.default(logger)
-      
+
       export scheduler.*
 
       val pinnedActorThreadFactory: ThreadFactory =
         defaultPinnedActorThreadFactory(logger)
-      
+
     }
 
 

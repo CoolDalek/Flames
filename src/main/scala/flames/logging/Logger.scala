@@ -1,13 +1,14 @@
-package flames.util
+package flames.logging
 
 import sourcecode.*
-import Logger.*
-import Logger.LogLevel.*
 
 import java.lang.Thread.UncaughtExceptionHandler
 import java.time.Instant
 import java.time.format.DateTimeFormatter
-import Ordering.Implicits.*
+
+import scala.Ordering.Implicits.*
+
+import LogLevel.*
 
 trait Logger {
 
@@ -83,34 +84,6 @@ trait Logger {
 
 }
 object Logger {
-  enum LogLevel {
-    case Trace extends LogLevel
-    case Debug extends LogLevel
-    case Info extends LogLevel
-    case Warn extends LogLevel
-    case Error extends LogLevel
-  }
-
-  given Ordering[LogLevel] = (x: LogLevel, y: LogLevel) =>
-    (x, y) match {
-      case (Trace, Trace) => 0
-      case (Trace, _) => 1
-      case (_, Trace) => -1
-      case (Debug, Debug) => 0
-      case (Debug, _) => 1
-      case (_, Debug) => -1
-      case (Info, Info) => 0
-      case (Info, _) => 1
-      case (_, Info) => -1
-      case (Warn, Warn) => 0
-      case (Warn, _) => 1
-      case (_, Warn) => -1
-      case (Error, Error) => 0
-    }
-
-  type Message = String | Null
-  type Failure = Throwable | Null
-  case class LogEvent(prefix: String, msg: Message, exc: Failure)
 
   def asUncaughtExceptionHandler(logger: Logger, logLevel: LogLevel = Error): UncaughtExceptionHandler =
     (t: Thread, e: Throwable) => logger.log(logLevel, s"Unexpected exception in thread ${t.getName}.", e)
