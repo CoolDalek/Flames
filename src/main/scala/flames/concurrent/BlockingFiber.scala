@@ -5,7 +5,7 @@ private[concurrent] final class BlockingFiber[T](
                                                   behavior: Behavior[T],
                                                 ) extends ShiftedFiber[T](_runtime, behavior) {
   override protected def run(): Unit =
-    runtime.execute {
+    runtime.blocking {
       executionLoop()
     }
 

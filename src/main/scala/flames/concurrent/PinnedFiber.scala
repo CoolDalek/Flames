@@ -5,11 +5,13 @@ private[concurrent] final class PinnedFiber[T](
                                                 behavior: Behavior[T],
                                               ) extends ActorFiber[T](_runtime, behavior) {
   private val pinned = runtime.pinnedThread {
-    state.set(FiberState.Running)
     run()
   }
 
-  override protected def run(): Unit = executionLoop()
+  override protected def run(): Unit = {
+    state.set(FiberState.Running)
+    executionLoop()
+  }
 
   override protected def yieldExecution(): Unit = {
     prepare()
