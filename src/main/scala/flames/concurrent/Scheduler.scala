@@ -26,7 +26,7 @@ trait Scheduler extends ExecutionContext with AutoCloseable {
 }
 object Scheduler {
 
-  private val availableProcessors = sys.runtime.availableProcessors
+  val availableProcessors: Int = sys.runtime.availableProcessors
 
   def default(
                logger: Logger,
