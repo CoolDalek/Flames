@@ -1,8 +1,15 @@
 package flames.concurrent
 
-trait PinnedActor[T](using ActorRuntime) extends Actor[T] {
-  
-  final override protected[concurrent] val fiber: ActorFiber[T] =
-    PinnedFiber(runtime, act())
+trait PinnedActor[T](customThread: PinnedFiber.CustomThread = null)(using ActorRuntime) extends Actor[T] {
+
+  override protected[concurrent] lazy val fiber: ActorFiber[T] = {
+    val pinned = PinnedFiber(
+      runtime,
+      act(),
+      customThread,
+    )
+    pinned.initialize()
+    pinned
+  }
   
 }

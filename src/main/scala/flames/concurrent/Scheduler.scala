@@ -9,7 +9,7 @@ import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.*
 
-trait Scheduler extends ExecutionContext with AutoCloseable {
+trait Scheduler extends ExecutionContext with Shutdown {
 
   inline def execute(inline action: => Unit): Unit = execute(() => action)
   
@@ -19,14 +19,10 @@ trait Scheduler extends ExecutionContext with AutoCloseable {
 
   def schedule[T](delay: FiniteDuration, period: FiniteDuration)(action: => T): Cancellable
 
-  override final def close(): Unit = shutdown()
-
-  def shutdown(): Unit
-
 }
 object Scheduler {
-
   val availableProcessors: Int = sys.runtime.availableProcessors
+  val defaultKeepAlive: FiniteDuration = 60.seconds
 
   def default(
                logger: Logger,
@@ -35,7 +31,7 @@ object Scheduler {
                minComputeThreads: Int = availableProcessors,
                maxComputeThreads: Int = availableProcessors,
                timerThreads: Int = 1,
-               keepAlive: FiniteDuration = 60.seconds,
+               keepAlive: FiniteDuration = defaultKeepAlive,
                interruptOnCancel: Boolean = false,
              ): Scheduler = new Scheduler {
 

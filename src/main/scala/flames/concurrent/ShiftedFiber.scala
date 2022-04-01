@@ -1,12 +1,14 @@
 package flames.concurrent
 
+import ProcessState.*
+
 private[concurrent] abstract class ShiftedFiber[T](
                                                     r: ActorRuntime,
                                                     b: Behavior[T],
                                                   ) extends ActorFiber[T](r, b) {
 
   final override protected def trySleep(): Unit = {
-    state.set(FiberState.Idle)
+    state.set(Idle)
     if (hasMessage) continue()
     loop = false
   }
@@ -16,9 +18,7 @@ private[concurrent] abstract class ShiftedFiber[T](
     loop = false
   }
 
-  final override protected def continue(): Unit = {
-    import FiberState.*
+  final override protected def continue(): Unit =
     if (state.compareAndSet(Idle, Running)) run()
-  }
 
 }

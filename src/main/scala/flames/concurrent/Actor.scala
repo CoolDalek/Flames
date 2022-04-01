@@ -3,7 +3,7 @@ package flames.concurrent
 type ActorFactory[T] = ActorRuntime ?=> Actor[T]
 trait Actor[T](using val runtime: ActorRuntime) {
 
-  protected[concurrent] val fiber: ActorFiber[T] = AsyncFiber(runtime, act())
+  protected[concurrent] lazy val fiber: ActorFiber[T] = AsyncFiber(runtime, act())
 
   protected[concurrent] final val self: ActorRef[T] = new ActorRef[T] {
 

@@ -11,12 +11,6 @@ private[concurrent] trait ActorFiber[T](
                                          private var behavior: Behavior[T],
                                        ) {
 
-  enum FiberState {
-    case Stop extends FiberState
-    case Running extends FiberState
-    case Idle extends FiberState
-  }
-
   enum ProcessResult {
     case EmptyQueue extends ProcessResult
     case Continue extends ProcessResult
@@ -25,7 +19,7 @@ private[concurrent] trait ActorFiber[T](
 
   protected val timerQueue = ConcurrentLinkedQueue[T]()
   protected val userQueue = ConcurrentLinkedQueue[T]()
-  protected val state = AtomicReference[FiberState](FiberState.Idle)
+  protected val state = AtomicReference[ProcessState](ProcessState.Idle)
   private val childs = mutable.Set.empty[ActorRef[Nothing]]
 
   private[concurrent] final def addChild(actor: ActorRef[Nothing]): Unit =
@@ -39,7 +33,7 @@ private[concurrent] trait ActorFiber[T](
 
   @tailrec
   private[concurrent] final def stop(): Unit = {
-    import FiberState.*
+    import ProcessState.*
     state.get() match {
       case Idle =>
         if(state.compareAndSet(Idle, Stop)) {
@@ -56,7 +50,7 @@ private[concurrent] trait ActorFiber[T](
   private[concurrent] final def userTell(message: T): Unit = tell(userQueue, message)
 
   private def tell(queue: ConcurrentLinkedQueue[T], message: T): Unit = {
-    import FiberState.*
+    import ProcessState.*
     state.get() match {
       case Stop =>
         runtime.reportFailure(Undelivered(message))
@@ -122,7 +116,7 @@ private[concurrent] trait ActorFiber[T](
   }
 
   private def processMessage(queue: ConcurrentLinkedQueue[T]): ProcessResult = {
-    if (state.get() != FiberState.Stop) {
+    if (state.get() != ProcessState.Stop) {
       if (queue.isEmpty) ProcessResult.EmptyQueue
       else {
         behavior match {
@@ -143,7 +137,7 @@ private[concurrent] trait ActorFiber[T](
         }
         behavior match {
           case Behavior.Stop =>
-            state.set(FiberState.Stop)
+            state.set(ProcessState.Stop)
             ProcessResult.Break
           case _ =>
             ProcessResult.Continue

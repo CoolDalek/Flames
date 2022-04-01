@@ -19,13 +19,19 @@ sealed trait ActorRuntime extends ActorScheduler {
 
   def logger: Logger
 
-  protected def pinnedActorThreadFactory: ThreadFactory
+  protected def pinnedActorThreadPool: PinnedActorThreadPool
 
   def spawn[T](factory: ActorFactory[T]): ActorRef[T] =
     factory.self
 
-  private[concurrent] def pinnedThread[T](run: => T): Thread =
-    pinnedActorThreadFactory.newThread(() => run)
+  private[concurrent] def runPinned(run: => Unit): Unit =
+    pinnedActorThreadPool.acquireThread(run)
+
+  private[concurrent] def watchExternalPinned(): Unit =
+    pinnedActorThreadPool.watchExternal()
+
+  private[concurrent] def forgetExternalPinned(): Unit =
+    pinnedActorThreadPool.forgetExternal()
 
   override def scheduleMessage[T](delay: FiniteDuration, to: ActorRef[T], message: T): Cancellable =
     schedule(delay)(to.timerTell(message))
@@ -49,7 +55,7 @@ object ActorRuntime {
                                val logger: Logger,
                                val autoYieldCount: Int,
                                val autoYieldTime: Option[FiniteDuration],
-                               val pinnedActorThreadFactory: ThreadFactory,
+                               val pinnedActorThreadPool: PinnedActorThreadPool,
                                scheduler: Scheduler
                              ) extends ActorRuntime {
     export scheduler.*
@@ -57,14 +63,14 @@ object ActorRuntime {
 
   def apply(logger: Logger,
             scheduler: Scheduler,
-            pinnedActorThreadFactory: ThreadFactory,
+            pinnedActorThreadPool: PinnedActorThreadPool,
             autoYieldCount: Int = defaultYieldCount,
             autoYieldTime: Option[FiniteDuration] = defaultYieldTime): ActorRuntime =
     new SimpleRuntime(
       logger = logger,
       autoYieldCount = autoYieldCount,
       autoYieldTime = autoYieldTime,
-      pinnedActorThreadFactory = pinnedActorThreadFactory,
+      pinnedActorThreadPool = pinnedActorThreadPool,
       scheduler = scheduler,
     )
 
@@ -74,21 +80,20 @@ object ActorRuntime {
 
       val autoYieldTime: Option[FiniteDuration] = defaultYieldTime
 
-      var _pinnedActorThreadFactory: ThreadFactory =
-        defaultPinnedActorThreadFactory { (t, e) =>
-          println(s"Exception in thread ${t.getName}")
-          e.printStackTrace()
-        }
+      val logger: Logger = RuntimeLogger(logLevel)
 
-      val logger: Logger = ActorLogger(logLevel)
-
-      _pinnedActorThreadFactory = DefaultThreadFactory(
-        namePrefix = pinned,
-        reporter = Logger.asUncaughtExceptionHandler(logger),
-        initCount = 1,
-      )
-
-      override def pinnedActorThreadFactory: ThreadFactory = _pinnedActorThreadFactory
+      val pinnedActorThreadPool: PinnedActorThreadPool =
+        PinnedActorThreadPool(
+          0,
+          Scheduler.availableProcessors,
+          Scheduler.defaultKeepAlive,
+          DefaultThreadFactory(
+            pinned,
+            Logger.asUncaughtExceptionHandler(logger)
+          ),
+        )
+        
+      watchExternalPinned()
 
       val scheduler: Scheduler = Scheduler.default(logger)
 
