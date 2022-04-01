@@ -1,13 +1,13 @@
 package flames.logging
 
-import flames.concurrent.{ActorRuntime, Behavior, BlockingActor}
+import flames.concurrent.{ActorRuntime, Behavior, PinnedActor}
 import flames.logging.Logger
 
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 final class ActorLogger(override val logLevel: LogLevel)
-                       (using ActorRuntime) extends BlockingActor[LogEvent] with Logger {
+                       (using ActorRuntime) extends PinnedActor[LogEvent] with Logger {
 
   override val timestampFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern(

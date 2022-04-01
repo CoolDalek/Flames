@@ -8,8 +8,9 @@ class DefaultThreadFactory(
                             namePrefix: String,
                             reporter: UncaughtExceptionHandler,
                             priority: Int = Thread.NORM_PRIORITY,
+                            initCount: Int = 0
                           ) extends ForkJoinPool.ForkJoinWorkerThreadFactory with ThreadFactory {
-  private val count = AtomicInteger(0)
+  private val count = AtomicInteger(initCount)
 
   private def configure[T <: Thread](instance: T): T = {
     instance.setName(s"$namePrefix-${count.getAndIncrement}")
