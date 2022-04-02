@@ -3,11 +3,11 @@ package flames.concurrent
 import ProcessState.*
 import PinnedFiber.*
 
-private[concurrent] open class PinnedFiber[T](
-                                               _runtime: ActorRuntime,
-                                               behavior: Behavior[T],
-                                               customThread: CustomThread,
-                                             ) extends ActorFiber[T](_runtime, behavior) {
+open class PinnedFiber[T](
+                           _runtime: ActorRuntime,
+                           behavior: Behavior[T],
+                           customThread: CustomThread,
+                         ) extends ActorFiber[T](_runtime, behavior) {
 
   protected[concurrent] def initialize(): Unit =
     customThread match {

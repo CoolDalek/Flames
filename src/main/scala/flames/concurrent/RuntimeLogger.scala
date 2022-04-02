@@ -2,19 +2,9 @@ package flames.concurrent
 
 import flames.concurrent.ActorRuntime
 import flames.logging.{ActorLogger, LogEvent, LogLevel}
+import RuntimeLogger.*
 
-private[flames] final class RuntimeLogger(lvl: LogLevel)(using ActorRuntime) extends ActorLogger(lvl) {
-
-  private def makeLoggerThread: PinnedFiber.MakeThread =
-    (runnable: Runnable) => {
-      val thread = new Thread(runnable, "Logger")
-      thread.setDaemon(true)
-      thread.setUncaughtExceptionHandler { (t, e) =>
-        println("Exception in logger thread.")
-        e.printStackTrace()
-      }
-      thread
-    }
+final class RuntimeLogger(lvl: LogLevel)(using ActorRuntime) extends ActorLogger(lvl) {
 
   final class LoggingFiber extends PinnedFiber(runtime, act(), null) {
 
@@ -31,5 +21,19 @@ private[flames] final class RuntimeLogger(lvl: LogLevel)(using ActorRuntime) ext
     logging.initialize()
     logging
   }
+
+}
+object RuntimeLogger {
+
+  def makeLoggerThread: PinnedFiber.MakeThread =
+    (runnable: Runnable) => {
+      val thread = new Thread(runnable, "Logger")
+      thread.setDaemon(true)
+      thread.setUncaughtExceptionHandler { (t, e) =>
+        println("Exception in logger thread.")
+        e.printStackTrace()
+      }
+      thread
+    }
 
 }

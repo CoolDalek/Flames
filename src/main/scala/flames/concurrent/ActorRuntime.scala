@@ -58,7 +58,12 @@ object ActorRuntime {
                                val pinnedActorThreadPool: PinnedActorThreadPool,
                                scheduler: Scheduler
                              ) extends ActorRuntime {
-    export scheduler.*
+    export scheduler.{shutdown as _, *}
+
+    override def shutdown(): Unit = {
+      scheduler.shutdown()
+      pinnedActorThreadPool.shutdown()
+    }
   }
 
   def apply(logger: Logger,
@@ -97,7 +102,12 @@ object ActorRuntime {
 
       val scheduler: Scheduler = Scheduler.default(logger)
 
-      export scheduler.*
+      export scheduler.{shutdown as _, *}
+
+      override def shutdown(): Unit = {
+        scheduler.shutdown()
+        pinnedActorThreadPool.shutdown()
+      }
 
     }
 

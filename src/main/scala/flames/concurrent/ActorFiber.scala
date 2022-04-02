@@ -6,10 +6,10 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.control.NonFatal
 
-private[concurrent] trait ActorFiber[T](
-                                         protected final val runtime: ActorRuntime,
-                                         private var behavior: Behavior[T],
-                                       ) {
+trait ActorFiber[T](
+                     protected final val runtime: ActorRuntime,
+                     private var behavior: Behavior[T],
+                   ) {
 
   enum ProcessResult {
     case EmptyQueue extends ProcessResult
@@ -17,9 +17,9 @@ private[concurrent] trait ActorFiber[T](
     case Break extends ProcessResult
   }
 
-  protected val timerQueue = ConcurrentLinkedQueue[T]()
-  protected val userQueue = ConcurrentLinkedQueue[T]()
-  protected val state = AtomicReference[ProcessState](ProcessState.Idle)
+  protected val timerQueue: ConcurrentLinkedQueue[T] = ConcurrentLinkedQueue[T]()
+  protected val userQueue: ConcurrentLinkedQueue[T] = ConcurrentLinkedQueue[T]()
+  protected val state: AtomicReference[ProcessState] = AtomicReference[ProcessState](ProcessState.Idle)
   private val childs = mutable.Set.empty[ActorRef[Nothing]]
 
   private[concurrent] final def addChild(actor: ActorRef[Nothing]): Unit =
