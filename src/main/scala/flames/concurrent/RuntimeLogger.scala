@@ -4,7 +4,8 @@ import flames.concurrent.ActorRuntime
 import flames.logging.{ActorLogger, LogEvent, LogLevel}
 import RuntimeLogger.*
 
-final class RuntimeLogger(lvl: LogLevel)(using ActorRuntime) extends ActorLogger(lvl) {
+private[concurrent] final class RuntimeLogger(lvl: LogLevel)
+                                             (using ActorRuntime) extends ActorLogger(lvl) {
 
   final class LoggingFiber extends PinnedFiber(runtime, act(), null) {
 
