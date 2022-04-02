@@ -82,7 +82,7 @@ final class PinnedActorThreadPool(
     state.get() match {
       case snapshot @ Working(threadsCount, lastAcquire) =>
         val deadline = lastAcquire + keepAliveNs
-        if(deadline <= System.nanoTime && count > minThreads) {
+        if(deadline <= System.nanoTime && threadsCount > minThreads) {
           thread.shutdown()
           @tailrec
           def loop(snapshot: Working): Unit = {
@@ -94,9 +94,9 @@ final class PinnedActorThreadPool(
               }
             }
           }
-          loop()
+          loop(snapshot)
         } else {
-          idleThreads().offer(thread)
+          idleThreads.offer(thread)
         }
       case Stopped => ()
     }
