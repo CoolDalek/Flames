@@ -1,7 +1,7 @@
 package flames.concurrent
 
 import java.util.concurrent.{ConcurrentLinkedQueue, RejectedExecutionException}
-import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
+import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.concurrent.duration.FiniteDuration
 import scala.util.control.{ControlThrowable, NonFatal}
@@ -13,11 +13,13 @@ final class PinnedActorThreadPool(
                                    val keepAlive: FiniteDuration,
                                    threadFactory: PinnedActorThreadFactory,
                                  ) extends Shutdown {
-  private val threadsCount = AtomicInteger(minThreads)
+  enum State {
+    case Working(threadsCount: Int, lastAcquire: Long) extends State
+    case Stopped extends State
+  }
+  import State.*
+  private val state = AtomicReference[State](Working(minThreads, 0l))
   private val idleThreads = ConcurrentLinkedQueue[PinnedActorThread]()
-  private val lastAcquire = AtomicLong(System.nanoTime())
-  @volatile private var stopped = false
-
   {
     var i = 0
     while(i < minThreads) {
@@ -27,78 +29,78 @@ final class PinnedActorThreadPool(
       i += 1
     }
   }
+  private val keepAliveNs: Long = keepAlive.toNanos
 
   private def tooMuchThreads(): Nothing = throw RejectedExecutionException(s"Reached maximum amount of threads: $maxThreads.")
 
   private def stoppedPoll(): Nothing = throw IllegalStateException("Pool is shutdown.")
 
-  private def updateTimer(): Unit = {
-    val now = System.nanoTime()
-    @tailrec
-    def loop(): Unit = {
-      val current = lastAcquire.get()
-      if(now > current) {
-        val success = lastAcquire.compareAndSet(current, now)
-        if(!success) loop()
-      }
-    }
-    loop()
-  }
-
+  @tailrec
   def acquireThread[T](action: => T): Unit =
-    idleThreads.poll() match {
-      case null =>
-        @tailrec
-        def loop(): Unit = {
-          val count = threadsCount.get()
-          if(count < maxThreads) {
-            val continue = threadsCount.compareAndSet(count, count + 1)
-            if(continue) {
-              if(stopped) {
-                stoppedPoll()
-              } else {
+    state.get() match {
+      case snapshot @ Working(threadsCount, lastAcquire) =>
+        idleThreads.poll() match {
+          case null =>
+            if (threadsCount < maxThreads) {
+              val updated = Working(threadsCount + 1, System.nanoTime())
+              if(state.compareAndSet(snapshot, updated)) {
                 val thread = threadFactory.makeThread(this)
                 thread.giveWork(() => action)
                 thread.start()
-                updateTimer()
-              }
-            } else loop()
-          } else tooMuchThreads()
+              } else acquireThread(action)
+            } else tooMuchThreads()
+          case thread =>
+            thread.giveWork(() => action)
         }
-        loop()
-      case thread =>
-        thread.giveWork(() => action)
+      case Stopped => stoppedPoll()
     }
 
   @tailrec
   def watchExternal(): Unit =
-    if(stopped) {
-      stoppedPoll()
-    } else {
-      val count = threadsCount.get()
-      if(count < maxThreads) {
-        if(!threadsCount.compareAndSet(count, count + 1)) watchExternal()
-      } else tooMuchThreads()
+    state.get() match {
+      case snapshot @ Working(threadsCount, lastAcquire) =>
+        if(threadsCount < maxThreads) {
+          val updated = Working(threadsCount + 1, System.nanoTime)
+          if(!state.compareAndSet(snapshot, updated)) watchExternal()
+        } else tooMuchThreads()
+      case Stopped => stoppedPoll()
     }
 
-  def forgetExternal(): Unit = threadsCount.decrementAndGet()
+  @tailrec
+  def forgetExternal(): Unit =
+    state.get() match {
+      case snapshot @ Working(threadsCount, lastAcquire) =>
+        val updated = Working(threadsCount - 1, lastAcquire)
+        if(!state.compareAndSet(snapshot, updated)) forgetExternal()
+      case Stopped => ()
+    }
 
   private[concurrent] def lostThread(thread: PinnedActorThread): Unit =
-    threadsCount.decrementAndGet()
+    forgetExternal()
 
   private[concurrent] def releaseThread(thread: PinnedActorThread): Unit =
-    if(stopped) {
-      thread.shutdown()
-    } else {
-      val count = threadsCount.get()
-      val deadline = lastAcquire.get() + keepAlive.toNanos
-      if(deadline > System.nanoTime && count == minThreads) {
-        idleThreads.offer(thread)
-      } else {
-        thread.shutdown()
-      }
+    state.get() match {
+      case snapshot @ Working(threadsCount, lastAcquire) =>
+        val deadline = lastAcquire + keepAliveNs
+        if(deadline <= System.nanoTime && count > minThreads) {
+          thread.shutdown()
+          @tailrec
+          def loop(snapshot: Working): Unit = {
+            val updated = Working(snapshot.threadsCount - 1, snapshot.lastAcquire)
+            if(!state.compareAndSet(snapshot, updated)) {
+              state.get() match {
+                case snapshot: Working => loop(snapshot)
+                case Stopped => ()
+              }
+            }
+          }
+          loop()
+        } else {
+          idleThreads().offer(thread)
+        }
+      case Stopped => ()
     }
 
-  override def shutdown(): Unit = stopped = true
+  override def shutdown(): Unit = state.set(Stopped)
 
 }
