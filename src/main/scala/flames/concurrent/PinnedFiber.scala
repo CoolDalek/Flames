@@ -19,7 +19,7 @@ open class PinnedFiber[T](
           safeRun()
         }.start()
     }
-    
+
   protected def safeRun(): Unit =
     try {
       run()
@@ -33,8 +33,8 @@ open class PinnedFiber[T](
   }
 
   override protected def yieldExecution(): Unit = {
-    prepare()
     Thread.`yield`()
+    prepare()
   }
 
   override protected def continue(): Unit =
@@ -43,10 +43,10 @@ open class PinnedFiber[T](
     }
 
   override protected def trySleep(): Unit = {
-    prepare()
     state.set(Idle)
     if (hasMessage) state.set(Running)
     else synchronized(wait())
+    prepare()
   }
 
 }
