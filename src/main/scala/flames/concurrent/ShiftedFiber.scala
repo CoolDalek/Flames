@@ -8,14 +8,14 @@ abstract class ShiftedFiber[T](
                               ) extends ActorFiber[T](r, b) {
 
   final override protected def trySleep(): Unit = {
+    loop = false
     state.set(Idle)
     if (hasMessage) continue()
-    loop = false
   }
 
   final override protected def yieldExecution(): Unit = {
-    run()
     loop = false
+    run()
   }
 
   final override protected def continue(): Unit =
