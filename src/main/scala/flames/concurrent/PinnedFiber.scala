@@ -16,9 +16,15 @@ open class PinnedFiber[T](
       case make: MakeThread =>
         runtime.watchExternalPinned()
         make { () =>
-          run()
-          runtime.forgetExternalPinned()
+          safeRun()
         }.start()
+    }
+    
+  protected def safeRun(): Unit =
+    try {
+      run()
+    } finally {
+      runtime.forgetExternalPinned()
     }
 
   override protected def run(): Unit = {
@@ -37,14 +43,10 @@ open class PinnedFiber[T](
     }
 
   override protected def trySleep(): Unit = {
+    prepare()
     state.set(Idle)
-    if (hasMessage) {
-      state.set(Running)
-      prepare()
-    } else synchronized {
-      wait()
-      prepare()
-    }
+    if (hasMessage) state.set(Running)
+    else synchronized(wait())
   }
 
 }

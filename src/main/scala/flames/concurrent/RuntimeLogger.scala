@@ -11,8 +11,7 @@ private[concurrent] final class RuntimeLogger(lvl: LogLevel)
 
     override protected[concurrent] def initialize(): Unit =
       makeLoggerThread { () =>
-        run()
-        runtime.forgetExternalPinned()
+        safeRun()
       }.start()
 
   }
