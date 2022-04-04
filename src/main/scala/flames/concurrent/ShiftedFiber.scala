@@ -15,7 +15,7 @@ abstract class ShiftedFiber[T](
 
   final override protected def yieldExecution(): Unit = {
     loop = false
-    run()
+    if(state.compareAndSet(Running, Running)) run()
   }
 
   final override protected def continue(): Unit =
