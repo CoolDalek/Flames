@@ -43,7 +43,8 @@ object Show extends Summoner[Show] {
     }
   }
 
-  inline private[util] def iterable[T, R <: IterableOnce[T]](name: String, instance: R)(inline show: T => String): String = {
+  inline private[util] def iterable[T, R <: IterableOnce[T]](name: String, instance: R)
+                                                            (inline show: T => String): String = {
     val builder = new StringBuilder(name)
     builder += '('
     val iterator = instance.iterator
