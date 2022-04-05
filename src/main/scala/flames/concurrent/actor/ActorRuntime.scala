@@ -2,6 +2,7 @@ package flames.concurrent.actor
 
 import flames.concurrent.*
 import flames.logging.*
+import flames.util.Id
 
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.ThreadFactory
@@ -79,13 +80,15 @@ object ActorRuntime {
       scheduler = scheduler,
     )
 
-  def default(logLevel: LogLevel): ActorRuntime =
+  def default(logLevel: LogLevel,
+              timestampPattern: String = ActorLogger.defaultTimestampPattern,
+              printer: Printer[Id] = ActorLogger.defaultPrinter): ActorRuntime =
     new ActorRuntime {
       val autoYieldCount: Int = defaultYieldCount
 
       val autoYieldTime: Option[FiniteDuration] = defaultYieldTime
 
-      val logger: Logger = RuntimeLogger(logLevel)
+      val logger: Logger = RuntimeLogger(logLevel, timestampPattern, printer)
 
       val pinnedActorThreadPool: PinnedActorThreadPool =
         PinnedActorThreadPool(

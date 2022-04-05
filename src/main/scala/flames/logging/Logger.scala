@@ -5,10 +5,9 @@ import sourcecode.*
 import java.lang.Thread.UncaughtExceptionHandler
 import java.time.Instant
 import java.time.format.DateTimeFormatter
-
 import scala.Ordering.Implicits.*
-
 import LogLevel.*
+import flames.util.{Show, show}
 
 trait Logger {
 
@@ -29,8 +28,8 @@ trait Logger {
 
   def isTraceEnabled: Boolean = isEnabled(Trace)
 
-  inline def trace(msg: => String)(using Enclosing, Line): Unit =
-    log(Trace, msg, null)
+  inline def trace[T: Show](msg: => T)(using Enclosing, Line): Unit =
+    log(Trace, msg.show, null)
 
   inline def trace(exc: Throwable)(using Enclosing, Line): Unit =
     log(Trace, null, exc)
@@ -40,8 +39,8 @@ trait Logger {
 
   def isDebugEnabled: Boolean = isEnabled(Debug)
 
-  inline def debug(msg: => String)(using Enclosing, Line): Unit =
-    log(Debug, msg, null)
+  inline def debug[T: Show](msg: => T)(using Enclosing, Line): Unit =
+    log(Debug, msg.show, null)
 
   inline def debug(exc: Throwable)(using Enclosing, Line): Unit =
     log(Debug, null, exc)
@@ -51,8 +50,8 @@ trait Logger {
 
   def isInfoEnabled: Boolean = isEnabled(Info)
 
-  inline def info(msg: => String)(using Enclosing, Line): Unit =
-    log(Info, msg, null)
+  inline def info[T: Show](msg: => T)(using Enclosing, Line): Unit =
+    log(Info, msg.show, null)
 
   inline def info(exc: Throwable)(using Enclosing, Line): Unit =
     log(Info, null, exc)
@@ -61,9 +60,9 @@ trait Logger {
     log(Info, msg, exc)
 
   def isWarnEnabled: Boolean = isEnabled(Warn)
-
-  inline def warn(msg: => String)(using Enclosing, Line): Unit =
-    log(Warn, msg, null)
+  
+  inline def warn[T: Show](msg: => T)(using Enclosing, Line): Unit =
+    log(Warn, msg.show, null)
 
   inline def warn(exc: Throwable)(using Enclosing, Line): Unit =
     log(Warn, null, exc)
@@ -73,8 +72,8 @@ trait Logger {
 
   def isErrorEnabled: Boolean = isEnabled(Error)
 
-  inline def error(msg: => String)(using Enclosing, Line): Unit =
-    log(Error, msg, null)
+  inline def error[T: Show](msg: => T)(using Enclosing, Line): Unit =
+    log(Error, msg.show, null)
 
   inline def error(exc: Throwable)(using Enclosing, Line): Unit =
     log(Error, null, exc)

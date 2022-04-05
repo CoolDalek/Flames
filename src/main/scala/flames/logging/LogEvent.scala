@@ -4,7 +4,7 @@ type Message = String | Null
 type Failure = Throwable | Null
 type StackTrace = Array[StackTraceElement] | Null
 extension [T](nullable: T | Null) {
-  inline def foreach(action: T => Unit) =
+  inline def notNull[R](action: T => R) =
     nullable match {
       case null => ()
       case value: T => action(value)

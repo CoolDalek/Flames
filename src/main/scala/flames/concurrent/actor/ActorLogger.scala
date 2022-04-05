@@ -5,27 +5,33 @@ import flames.logging.*
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-trait ActorLogger(override val logLevel: LogLevel)
-                 (using ActorRuntime) extends Logger {
+import java.io.PrintWriter
+import flames.util.{Id, Show, given}
+import ActorLogger.given
+
+trait ActorLogger(
+                   override val logLevel: LogLevel,
+                   timestampPattern: String,
+                   printer: Printer[Id],
+                 )(using ActorRuntime) extends Logger {
   this: AnyActor[LogEvent] =>
 
   override val timestampFormat: DateTimeFormatter =
-    DateTimeFormatter.ofPattern(
-      "yyyy-MM-dd HH:mm:ss.SSS"
-    ).withZone(ZoneId.systemDefault)
+    DateTimeFormatter.ofPattern(timestampPattern)
+      .withZone(ZoneId.systemDefault)
 
   override def log(event: LogEvent): Unit = self.tell(event)
 
   override def act(): Behavior[LogEvent] = receive {
     case LogEvent(prefix, msg, exc) =>
-      msg.foreach { value =>
-        println(s"$prefix $value")
+      msg.notNull { value =>
+        printer.println(s"$prefix $value")
       }
-      exc.foreach { value =>
-        println(s"$prefix $value")
+      exc.notNull { value =>
+        printer.println(s"$prefix $value")
         val stackTrace: StackTrace = value.getStackTrace()
-        stackTrace.foreach { value =>
-          value.foreach(println)
+        stackTrace.notNull { value =>
+          value.foreach(printer.println)
         }
       }
       same
@@ -33,9 +39,24 @@ trait ActorLogger(override val logLevel: LogLevel)
 
 }
 object ActorLogger {
-  
-  def default(lvl: LogLevel, customThread: PinnedFiber.CustomThread)
+
+  given Show[StackTraceElement] = Show.UnsafeShow
+
+  val defaultTimestampPattern: String = "yyyy-MM-dd HH:mm:ss.SSS"
+
+  val defaultPrinter: Printer[Id] = new Printer[Id] {
+    override def print[T: Show](obj: T): Id[Unit] =
+      Console.print(Show[T].show(obj))
+
+    override def println[T: Show](obj: T): Id[Unit] =
+      Console.println(Show[T].show(obj))
+  }
+
+  def default(lvl: LogLevel,
+              pattern: String = defaultTimestampPattern,
+              printer: Printer[Id] = defaultPrinter,
+              customThread: PinnedFiber.CustomThread = PinnedFiber.defaultThread)
              (using ActorRuntime): ActorLogger =
-    new ActorLogger(lvl) with PinnedActor[LogEvent](customThread) {}
-  
+    new ActorLogger(lvl, pattern, printer) with PinnedActor[LogEvent](customThread) {}
+
 }

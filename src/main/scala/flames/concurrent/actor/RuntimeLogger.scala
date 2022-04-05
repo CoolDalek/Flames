@@ -1,10 +1,15 @@
 package flames.concurrent.actor
 
 import flames.concurrent.actor.RuntimeLogger.*
-import flames.logging.{LogEvent, LogLevel}
+import flames.logging.{LogEvent, LogLevel, Printer}
+import flames.util.Id
 
-private[concurrent] final class RuntimeLogger(lvl: LogLevel)
-                                             (using ActorRuntime) extends ActorLogger(lvl) with AnyActor[LogEvent] {
+private[concurrent] final class RuntimeLogger(
+                                               lvl: LogLevel,
+                                               pattern: String,
+                                               printer: Printer[Id]
+                                             )(using ActorRuntime)
+  extends ActorLogger(lvl, pattern, printer) with AnyActor[LogEvent] {
 
   override protected def makeFiber: ActorFiber[LogEvent] = new PinnedFiber(runtime, act(), null) {
 

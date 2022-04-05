@@ -55,4 +55,5 @@ open class PinnedFiber[T](
 object PinnedFiber {
   type MakeThread = Runnable => Thread
   type CustomThread = MakeThread | Null
+  inline def defaultThread: CustomThread = null
 }
