@@ -1,14 +1,15 @@
-package flames.concurrent
+package flames.concurrent.actor
 
+import flames.concurrent.*
 import flames.logging.*
 
 import java.lang.Thread.UncaughtExceptionHandler
-import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.ExecutionContext
-import scala.collection.concurrent.TrieMap
-import scala.collection.mutable
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicInteger
+import scala.collection.concurrent.TrieMap
+import scala.collection.mutable
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.FiniteDuration
 
 sealed trait ActorRuntime extends ActorScheduler {
   protected given ActorRuntime = this
@@ -21,8 +22,7 @@ sealed trait ActorRuntime extends ActorScheduler {
 
   protected def pinnedActorThreadPool: PinnedActorThreadPool
 
-  def spawn[T](factory: ActorFactory[T]): ActorRef[T] =
-    factory.self
+  def spawn[T](factory: ActorFactory[T]): ActorRef[T] = factory.initialize()
 
   private[concurrent] def runPinned(run: => Unit): Unit =
     pinnedActorThreadPool.acquireThread(run)

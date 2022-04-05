@@ -1,4 +1,4 @@
-package flames.concurrent
+package flames.concurrent.actor
 
 open class BlockingFiber[T](
                              _runtime: ActorRuntime,

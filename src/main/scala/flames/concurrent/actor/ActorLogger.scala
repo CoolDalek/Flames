@@ -1,13 +1,13 @@
-package flames.logging
+package flames.concurrent.actor
 
-import flames.concurrent.{ActorRuntime, Behavior, PinnedActor, PinnedFiber}
 import flames.logging.*
 
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-open class ActorLogger(override val logLevel: LogLevel)
-                      (using ActorRuntime) extends PinnedActor[LogEvent]() with Logger {
+trait ActorLogger(override val logLevel: LogLevel)
+                 (using ActorRuntime) extends Logger {
+  this: AnyActor[LogEvent] =>
 
   override val timestampFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern(
@@ -31,4 +31,11 @@ open class ActorLogger(override val logLevel: LogLevel)
       same
   }
 
+}
+object ActorLogger {
+  
+  def default(lvl: LogLevel, customThread: PinnedFiber.CustomThread)
+             (using ActorRuntime): ActorLogger =
+    new ActorLogger(lvl) with PinnedActor[LogEvent](customThread) {}
+  
 }

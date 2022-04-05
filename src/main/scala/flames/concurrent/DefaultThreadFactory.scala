@@ -1,5 +1,7 @@
 package flames.concurrent
 
+import flames.concurrent.actor.{PinnedActorThread, PinnedActorThreadFactory, PinnedActorThreadPool}
+
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.{ForkJoinPool, ForkJoinWorkerThread, ThreadFactory}
 import java.util.concurrent.atomic.AtomicInteger

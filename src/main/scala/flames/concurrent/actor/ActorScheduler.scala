@@ -1,4 +1,6 @@
-package flames.concurrent
+package flames.concurrent.actor
+
+import flames.concurrent.{Cancellable, Scheduler}
 
 import scala.concurrent.duration.FiniteDuration
 

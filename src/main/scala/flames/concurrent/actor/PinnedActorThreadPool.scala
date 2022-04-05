@@ -1,11 +1,13 @@
-package flames.concurrent
+package flames.concurrent.actor
 
-import java.util.concurrent.{ConcurrentLinkedQueue, RejectedExecutionException}
+import flames.concurrent.Shutdown
+
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.{ConcurrentLinkedQueue, RejectedExecutionException}
 import scala.annotation.tailrec
+import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
 import scala.util.control.{ControlThrowable, NonFatal}
-import scala.collection.mutable
 
 final class PinnedActorThreadPool(
                                    val minThreads: Int,

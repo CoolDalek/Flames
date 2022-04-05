@@ -1,4 +1,4 @@
-package flames.concurrent
+package flames.concurrent.actor
 
 trait PinnedActorThreadFactory {
 

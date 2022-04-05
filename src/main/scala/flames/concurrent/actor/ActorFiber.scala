@@ -1,4 +1,7 @@
-package flames.concurrent
+package flames.concurrent.actor
+
+import flames.concurrent.ProcessState
+import flames.concurrent.ProcessState.*
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicReference

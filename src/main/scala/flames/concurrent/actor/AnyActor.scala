@@ -1,11 +1,18 @@
-package flames.concurrent
+package flames.concurrent.actor
 
-type ActorFactory[T] = ActorRuntime ?=> Actor[T]
-trait Actor[T](using val runtime: ActorRuntime) {
+type ActorFactory[T] = ActorRuntime ?=> AnyActor[T]
+trait AnyActor[T](using val runtime: ActorRuntime) {
+  
+  protected def makeFiber: ActorFiber[T]
 
-  protected[concurrent] lazy val fiber: ActorFiber[T] = AsyncFiber(runtime, act())
+  private var fiber: ActorFiber[T] = null.asInstanceOf[ActorFiber[T]]
+  
+  private[actor] def initialize(): ActorRef[T] = {
+    fiber = makeFiber
+    self
+  }
 
-  protected[concurrent] final val self: ActorRef[T] = new ActorRef[T] {
+  protected final val self: ActorRef[T] = new ActorRef[T] {
 
     override def tell(message: T): Unit = fiber.userTell(message)
 

@@ -1,6 +1,6 @@
-package flames.concurrent
+package flames.concurrent.actor
 
-import ProcessState.*
+import flames.concurrent.ProcessState.*
 
 abstract class ShiftedFiber[T](
                                 r: ActorRuntime,

@@ -1,9 +1,11 @@
-package flames.concurrent
+package flames.concurrent.actor
+
+import flames.concurrent.ProcessState.*
+import flames.concurrent.Shutdown
 
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import scala.util.control.{ControlThrowable, NonFatal}
-import ProcessState.*
 
 final class PinnedActorThread(pool: PinnedActorThreadPool) extends Thread with Shutdown {
 
