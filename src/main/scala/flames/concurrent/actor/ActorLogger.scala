@@ -40,7 +40,7 @@ trait ActorLogger(
 }
 object ActorLogger {
 
-  given Show[StackTraceElement] = Show.UnsafeShow
+  given Show[StackTraceElement] = Show.unsafeShow
 
   val defaultTimestampPattern: String = "yyyy-MM-dd HH:mm:ss.SSS"
 

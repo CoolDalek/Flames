@@ -1,16 +1,17 @@
 package flames.concurrent.actor
 
+import flames.concurrent.{AtomicProcessState, ProcessState, Shutdown}
 import flames.concurrent.ProcessState.*
-import flames.concurrent.Shutdown
 
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
+import scala.annotation.switch
 import scala.util.control.{ControlThrowable, NonFatal}
 
 final class PinnedActorThread(pool: PinnedActorThreadPool) extends Thread with Shutdown {
 
   private var work: Runnable = null.asInstanceOf[Runnable]
-  private val state = AtomicReference(Idle)
+  private val state = AtomicProcessState(Idle)
   private val lock = new AnyRef() {}
 
   def giveWork(run: Runnable): Unit =
@@ -27,7 +28,7 @@ final class PinnedActorThread(pool: PinnedActorThreadPool) extends Thread with S
   override def run(): Unit = {
     var loop = true
     while(loop) {
-      state.get() match {
+      (state.get(): @switch) match {
         case Stop =>
           loop = false
         case Running =>

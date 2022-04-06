@@ -25,9 +25,7 @@ final class PinnedActorThreadPool(
   {
     var i = 0
     while(i < minThreads) {
-      val thread = threadFactory.makeThread(this)
-      idleThreads.offer(thread)
-      thread.start()
+      threadFactory.makeThread(this).start()
       i += 1
     }
   }

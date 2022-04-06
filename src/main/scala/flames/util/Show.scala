@@ -11,10 +11,12 @@ trait Show[T] {
 
 }
 object Show extends Summoner[Show] {
+  
+  private val unsafeInstance: Show[Any] = _.toString
 
-  def UnsafeShow[T]: Show[T] = _.toString
+  def unsafeShow[T]: Show[T] = unsafeInstance.asInstanceOf[Show[T]]
 
-  given [T <: Product]: Show[T] = UnsafeShow
+  given [T <: Product]: Show[T] = unsafeShow
 
   inline def summonInstances[T <: Tuple]: List[Show[_]] =
     inline erasedValue[T] match
@@ -61,7 +63,7 @@ object Show extends Summoner[Show] {
 
 }
 given Show[String] = identity
-given [T <: AnyVal]: Show[T] = Show.UnsafeShow
+given [T <: AnyVal]: Show[T] = Show.unsafeShow
 given [T: Show, R <: Iterable[T]](using ClassTag[R]): Show[R] =
   (obj: R) => {
     val name = classTag[R].runtimeClass.getSimpleName

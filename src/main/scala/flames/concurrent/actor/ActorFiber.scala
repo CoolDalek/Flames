@@ -1,11 +1,11 @@
 package flames.concurrent.actor
 
-import flames.concurrent.ProcessState
+import flames.concurrent.{AtomicProcessState, ProcessState}
 import flames.concurrent.ProcessState.*
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicReference
-import scala.annotation.tailrec
+import scala.annotation.{switch, tailrec}
 import scala.collection.mutable
 import scala.util.control.NonFatal
 
@@ -14,15 +14,21 @@ trait ActorFiber[T](
                      private var behavior: Behavior[T],
                    ) {
 
-  enum ProcessResult {
-    case EmptyQueue extends ProcessResult
-    case Continue extends ProcessResult
-    case Break extends ProcessResult
+  import ProcessResult.*
+
+  private type ProcessResult = EmptyQueue | Continue | Break
+  private object ProcessResult {
+    type EmptyQueue = 1
+    val EmptyQueue: EmptyQueue = 1
+    type Continue = 2
+    val Continue: Continue = 2
+    type Break = 3
+    val Break: Break = 3
   }
 
   protected val timerQueue: ConcurrentLinkedQueue[T] = ConcurrentLinkedQueue[T]()
   protected val userQueue: ConcurrentLinkedQueue[T] = ConcurrentLinkedQueue[T]()
-  protected val state: AtomicReference[ProcessState] = AtomicReference[ProcessState](ProcessState.Idle)
+  protected val state: AtomicProcessState = AtomicProcessState(ProcessState.Idle)
   private val childs = mutable.Set.empty[ActorRef[Nothing]]
 
   private[concurrent] final def addChild(actor: ActorRef[Nothing]): Unit =
@@ -37,7 +43,7 @@ trait ActorFiber[T](
   @tailrec
   private[concurrent] final def stop(): Unit = {
     import ProcessState.*
-    state.get() match {
+    (state.get(): @switch) match {
       case Idle =>
         if(state.compareAndSet(Idle, Stop)) {
           stopCleanup()
@@ -54,7 +60,7 @@ trait ActorFiber[T](
 
   private def tell(queue: ConcurrentLinkedQueue[T], message: T): Unit = {
     import ProcessState.*
-    state.get() match {
+    (state.get(): @switch) match {
       case Stop =>
         runtime.reportFailure(Undelivered(message))
       case Running =>
@@ -107,7 +113,7 @@ trait ActorFiber[T](
 
   private def process(queue: ConcurrentLinkedQueue[T])(onEmpty: => Unit): Unit = {
     import ProcessResult.*
-    processMessage(queue) match {
+    (processMessage(queue): @switch) match {
       case EmptyQueue =>
         onEmpty
       case Continue =>
