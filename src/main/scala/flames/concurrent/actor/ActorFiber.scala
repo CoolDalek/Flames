@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.{switch, tailrec}
 import scala.collection.mutable
 import scala.util.control.NonFatal
+import BehaviorTag.*
 
 trait ActorFiber[T](
                      protected final val runtime: ActorRuntime,
@@ -41,8 +42,7 @@ trait ActorFiber[T](
     childs.foreach(_.stop())
 
   @tailrec
-  private[concurrent] final def stop(): Unit = {
-    import ProcessState.*
+  private[concurrent] final def stop(): Unit =
     (state.get(): @switch) match {
       case Idle =>
         if(state.compareAndSet(Idle, Stop)) {
@@ -52,14 +52,12 @@ trait ActorFiber[T](
         state.set(Stop)
       case Stop => ()
     }
-  }
 
   private[concurrent] final def timerTell(message: T): Unit = tell(timerQueue, message)
 
   private[concurrent] final def userTell(message: T): Unit = tell(userQueue, message)
 
-  private def tell(queue: ConcurrentLinkedQueue[T], message: T): Unit = {
-    import ProcessState.*
+  private def tell(queue: ConcurrentLinkedQueue[T], message: T): Unit =
     (state.get(): @switch) match {
       case Stop =>
         runtime.reportFailure(Undelivered(message))
@@ -69,7 +67,6 @@ trait ActorFiber[T](
         queue.add(message)
         continue()
     }
-  }
 
   private var yieldCount: Int = _
   private var deadline: Long = _
@@ -125,16 +122,18 @@ trait ActorFiber[T](
   }
 
   private def processMessage(queue: ConcurrentLinkedQueue[T]): ProcessResult = {
-    if (state.get() != ProcessState.Stop) {
-      if (queue.isEmpty) ProcessResult.EmptyQueue
+    if (state.get() != Stop) {
+      if (queue.isEmpty) EmptyQueue
       else {
-        behavior match {
-          case receive: Behavior.Receive[T] =>
+        (behavior.tag: @switch) match {
+          case ReceiveTag =>
             try {
-              receive.act(queue.poll()) match {
-                case Behavior.Same =>
+              val receive = behavior.asInstanceOf[Behavior.Receive[T]]
+              val next = receive.act(queue.poll())
+              (next.tag: @switch) match {
+                case SameTag =>
                   behavior = receive
-                case next =>
+                case _ =>
                   behavior = next
               }
             } catch {
@@ -144,15 +143,15 @@ trait ActorFiber[T](
             }
           case _ => ()
         }
-        behavior match {
-          case Behavior.Stop =>
-            state.set(ProcessState.Stop)
-            ProcessResult.Break
+        (behavior.tag: @switch) match {
+          case StopTag =>
+            state.set(Stop)
+            Break
           case _ =>
-            ProcessResult.Continue
+            Continue
         }
       }
-    } else ProcessResult.Break
+    } else Break
   }
 
 }

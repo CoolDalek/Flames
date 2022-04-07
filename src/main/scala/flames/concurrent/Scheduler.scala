@@ -9,11 +9,21 @@ import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.*
 
-trait Scheduler extends ExecutionContext with Shutdown {
+trait Scheduler extends ExecutionContext with Shutdown { self =>
 
   inline def execute(inline action: => Unit): Unit = execute(() => action)
   
-  def blocking(action: => Unit): Unit
+  def blocking(action: Runnable): Unit
+  
+  inline def blocking(inline action: => Unit): Unit = blocking(() => action)
+
+  val blockingEC: ExecutionContext = new ExecutionContext {
+    
+    override def execute(runnable: Runnable): Unit = self.blocking(runnable)
+
+    override def reportFailure(cause: Throwable): Unit = self.reportFailure(cause)
+    
+  }
 
   def schedule[T](delay: FiniteDuration)(action: => T): Cancellable
 
@@ -73,8 +83,8 @@ object Scheduler {
         keepAlive.unit,
       )
 
-    override def blocking(action: => Unit): Unit =
-      blocker.execute(() => action)
+    override def blocking(action: Runnable): Unit =
+      blocker.execute(action)
 
     private def cancellable(scheduled: ScheduledFuture[_]): Cancellable =
       new Cancellable {
