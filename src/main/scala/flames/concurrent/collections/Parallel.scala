@@ -16,7 +16,6 @@ sealed trait Parallel[+T] { self =>
   def run(callback: Iterator[T] => Unit)(using ec: ExecutionContext): Unit = {
     val stack = mutable.Stack.empty[Cont]
     var current = erasePar(self)
-    var currentPart = eraseSplit(null)
     var loop = true
     while(loop) {
       current match {
@@ -24,13 +23,12 @@ sealed trait Parallel[+T] { self =>
           if(stack.isEmpty) {
             loop = false
             val erasedCall = eraseCall(callback)
-            val erasedPart = eraseSplit(splitter)
+            val erasedSplit = eraseSplit(splitter)
             val erasedColl = eraseColl(collection)
-            val result = erasedPart.iterator(erasedColl)
+            val result = erasedSplit.iterator(erasedColl)
             erasedCall(result)
           } else {
             val cont = stack.pop()
-            currentPart = eraseSplit(splitter)
             current = cont(splitter.split(collection))
           }
         case Continue(splitted) =>
