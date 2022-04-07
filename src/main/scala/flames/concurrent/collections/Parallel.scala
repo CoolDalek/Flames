@@ -45,13 +45,13 @@ sealed trait Parallel[+T] { self =>
           stack.push { splitted =>
             val flatMap = action.asInstanceOf[Any => ErasedCollection]
             val erased = eraseSplit(splitter)
-            val result = for {
-              outer <- splitted
-              inner <- outer
-              collection = flatMap(inner)
-            } yield erased.iterator(collection)
-            val apply = result.flatten
-            Apply(apply, erased)
+            val result = splitted.flatMap { part =>
+              part.flatMap { element =>
+                val collection = flatMap(element)
+                erased.iterator(collection)
+              }
+            }
+            Apply(result, erased)
           }
           current = prev
         case Map(prev, action) =>
