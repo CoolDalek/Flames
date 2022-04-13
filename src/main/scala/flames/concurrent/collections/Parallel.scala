@@ -17,15 +17,14 @@ sealed trait Parallel[-In, +Out] extends Eraser { self =>
     new ParallelFiber(
       this,
       eraseCallback(callback),
-      eraseSplitter(Splitter[C]),
-      eraseCollection(on),
+      Splitter[C].split(on),
     ).run()
 
 }
 object Parallel {
 
   private[collections] case class Value[T](
-                                            splitted: Iterator[Iterator[T]],
+                                            splitted: Spliterator[T],
                                           ) extends Parallel[Any, T]
 
   private[collections] case class Map[In, Out1, Out2](

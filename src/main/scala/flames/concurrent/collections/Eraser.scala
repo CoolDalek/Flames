@@ -5,8 +5,8 @@ private[collections] type Fix[T] = Any
 private[collections] type ErasedCollection = Fix[Any]
 private[collections] type ErasedSplitter = Splitter[Fix]
 private[collections] type ErasedParallel = Parallel[Nothing, Any]
-private[collections] type Splitted = Iterator[Iterator[Any]]
-private[collections] type Continuation = Splitted => ErasedParallel
+private[collections] type Splitted = Spliterator[Any]
+private[collections] type Continuation = Splitted => Unit
 
 transparent trait Eraser {
 
@@ -18,7 +18,7 @@ transparent trait Eraser {
     collection.asInstanceOf[ErasedCollection]
   inline private[collections] def eraseSplitter[C[_]](splitter: Splitter[C]): ErasedSplitter =
     splitter.asInstanceOf[ErasedSplitter]
-  inline private[collections] def eraseSplitted[T](splitted: Iterator[Iterator[T]]): Splitted =
+  inline private[collections] def erase.reset()Splitted[T](splitted: Iterator[Iterator[T]]): Splitted =
     splitted.asInstanceOf[Splitted]
 
 }
