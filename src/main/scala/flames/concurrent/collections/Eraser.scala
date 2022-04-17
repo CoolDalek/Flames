@@ -18,7 +18,7 @@ transparent trait Eraser {
     collection.asInstanceOf[ErasedCollection]
   inline private[collections] def eraseSplitter[C[_]](splitter: Splitter[C]): ErasedSplitter =
     splitter.asInstanceOf[ErasedSplitter]
-  inline private[collections] def erase.reset()Splitted[T](splitted: Iterator[Iterator[T]]): Splitted =
+  inline private[collections] def eraseSplitted[T](splitted: Iterator[Iterator[T]]): Splitted =
     splitted.asInstanceOf[Splitted]
 
 }
