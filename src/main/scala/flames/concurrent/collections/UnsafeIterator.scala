@@ -9,5 +9,7 @@ trait UnsafeIterator[+T] {
   def reset(): Unit
 
   def map[R](f: T => R): UnsafeIterator[R]
+  
+  def flatMap[R](f: T => Spliterator[R]): UnsafeIterator[R]
 
 }

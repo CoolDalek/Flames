@@ -8,7 +8,7 @@ trait Splitter[C[_]] {
 
 }
 object Splitter extends SummonerK[Splitter] {
-
+/*
   given Splitter[IArray] = new Splitter[IArray] {
     private val partSize = 10
 
@@ -16,7 +16,7 @@ object Splitter extends SummonerK[Splitter] {
       new Spliterator[T] { self =>
         private var current = 0
         private var splitted = false
-        override val knownSize: Int = coll.length / partSize
+        override val size: Int = coll.length / partSize
         private var head = null.asInstanceOf[UnsafeIterator[T]]
         private val tail = new Array[UnsafeIterator[T]](
           math.max(knownSize - 1, 0)
@@ -31,7 +31,7 @@ object Splitter extends SummonerK[Splitter] {
             if(null == head && hasNext) head = next()
             var position = 0
             while(hasNext) {
-              position = current - 1 
+              position = current - 1
               if (null == tail(position)) tail(position) = next()
             }
             current = cursor
@@ -86,7 +86,7 @@ object Splitter extends SummonerK[Splitter] {
           } else cached
         }
       }
-    
-  }
 
+  }
+*/
 }

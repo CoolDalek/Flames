@@ -10,5 +10,6 @@ lazy val root = (project in file("."))
       "com.lihaoyi" %% "sourcecode" % "0.2.8",
       Dependencies.JBox2D(),
       Dependencies.JOML(),
+      "org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.4",
     ) ++ Dependencies.Lwjgl() ++ Dependencies.Skija(),
   )

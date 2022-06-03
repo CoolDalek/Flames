@@ -1,35 +1,48 @@
 package flames.concurrent.collections
 
+import scala.annotation.tailrec
+
 trait Spliterator[+T] { self =>
-
-  def hasNext: Boolean
-
-  def next(): UnsafeIterator[T]
-
-  def reset(): Unit
   
-  def forkCache: IArray[UnsafeIterator[T]]
+  def head: UnsafeIterator[T] | Null
   
-  def forceSplit(): Unit
+  def tail: IArray[UnsafeIterator[T]]
   
-  def knownSize: Int
+  def size: Int
 
-  def collect(): Iterator[T] = {
-    reset()
+  def asIterator(): Iterator[T] =
     new Iterator[T] {
-      private var currentPart = null.asInstanceOf[UnsafeIterator[T]]
+      private var current = self.head
+      private var cursor = -1
 
       override def hasNext: Boolean =
-        self.hasNext || (null != currentPart && currentPart.hasNext)
-
-      override def next(): T = {
-        if (null == currentPart) {
-          currentPart = self.next()
+        current != null && {
+          current.hasNext || {
+            val tail = self.tail
+            var i = cursor
+            var found = false
+            while (i < tail.length && !found) {
+              found = tail(i).hasNext
+              i += 1
+            }
+            found
+          }
         }
-        currentPart.next()
-      }
+
+      @tailrec
+      final override def next(): T =
+        if(current != null) {
+          if(current.hasNext) {
+            current.next()
+          } else {
+            cursor += 1
+            if(cursor < self.tail.length) {
+              current = self.tail(cursor)
+              next()
+            } else throw new NoSuchElementException()
+          }
+        } else throw new NoSuchElementException()
 
     }
-  }
 
 }
