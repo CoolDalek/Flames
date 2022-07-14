@@ -11,7 +11,7 @@ class DefaultThreadFactory(
                             reporter: UncaughtExceptionHandler,
                             priority: Int = Thread.NORM_PRIORITY,
                             initCount: Int = 0
-                          ) extends ForkJoinPool.ForkJoinWorkerThreadFactory with ThreadFactory with PinnedActorThreadFactory {
+                          ) extends ForkJoinPool.ForkJoinWorkerThreadFactory with ThreadFactory {
   private val count = AtomicInteger(initCount)
 
   private def configure[T <: Thread](instance: T): T = {
@@ -29,8 +29,5 @@ class DefaultThreadFactory(
 
   override def newThread(r: Runnable): Thread =
     configure(Thread(r))
-
-  override def makeThread(pool: PinnedActorThreadPool): PinnedActorThread =
-    configure(PinnedActorThread(pool))
   
 }

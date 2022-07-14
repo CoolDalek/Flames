@@ -1,6 +1,7 @@
 package flames.concurrent.actor
 
 import flames.concurrent.*
+import flames.concurrent.actor.fiber.*
 import flames.logging.*
 import flames.util.Id
 
@@ -13,26 +14,16 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
 sealed trait ActorRuntime extends ActorScheduler {
-  protected given ActorRuntime = this
-
-  def autoYieldCount: Int
-
-  def autoYieldTime: Option[FiniteDuration]
 
   def logger: Logger
 
-  protected def pinnedActorThreadPool: PinnedActorThreadPool
+  private type Parent = ActorRef[Nothing] | Null
 
-  def spawn[T](factory: ActorFactory[T]): ActorRef[T] = factory.initialize()
+  private[actor] def makeBlocking[T](behavior: Behavior[T], parent: Parent): ActorFiber[T]
 
-  private[concurrent] def runPinned(run: => Unit): Unit =
-    pinnedActorThreadPool.acquireThread(run)
+  private[actor] def makePinned[T](behavior: Behavior[T], parent: Parent): ActorFiber[T]
 
-  private[concurrent] def watchExternalPinned(): Unit =
-    pinnedActorThreadPool.watchExternal()
-
-  private[concurrent] def forgetExternalPinned(): Unit =
-    pinnedActorThreadPool.forgetExternal()
+  private[actor] def makeAsync[T](behavior: Behavior[T], parent: Parent): ActorFiber[T]
 
   override def scheduleMessage[T](delay: FiniteDuration, to: ActorRef[T], message: T): Cancellable =
     schedule(delay)(to.timerTell(message))
@@ -43,74 +34,67 @@ sealed trait ActorRuntime extends ActorScheduler {
 }
 object ActorRuntime {
 
-  inline private val pinned = "Pinned"
-
   val defaultYieldTime: Option[FiniteDuration] = None
   val defaultYieldCount: Int = 8
-  def defaultPinnedActorThreadFactory(reporter: UncaughtExceptionHandler): ThreadFactory =
-    DefaultThreadFactory(pinned, reporter)
-  def defaultPinnedActorThreadFactory(logger: Logger): ThreadFactory =
-    defaultPinnedActorThreadFactory(Logger.asUncaughtExceptionHandler(logger))
 
   private class SimpleRuntime(
                                val logger: Logger,
                                val autoYieldCount: Int,
                                val autoYieldTime: Option[FiniteDuration],
-                               val pinnedActorThreadPool: PinnedActorThreadPool,
                                scheduler: Scheduler
                              ) extends ActorRuntime {
-    export scheduler.{shutdown as _, *}
-
-    override def shutdown(): Unit = {
-      scheduler.shutdown()
-      pinnedActorThreadPool.shutdown()
-    }
+    export scheduler.*
   }
 
   def apply(logger: Logger,
             scheduler: Scheduler,
-            pinnedActorThreadPool: PinnedActorThreadPool,
             autoYieldCount: Int = defaultYieldCount,
             autoYieldTime: Option[FiniteDuration] = defaultYieldTime): ActorRuntime =
     new SimpleRuntime(
       logger = logger,
       autoYieldCount = autoYieldCount,
       autoYieldTime = autoYieldTime,
-      pinnedActorThreadPool = pinnedActorThreadPool,
       scheduler = scheduler,
     )
 
-  def default(logLevel: LogLevel,
-              timestampPattern: String = ActorLogger.defaultTimestampPattern,
-              printer: Printer[Id] = ActorLogger.defaultPrinter): ActorRuntime =
+  def default(
+               fiberConfig: FiberConfig = FiberConfig(),
+               logLevel: LogLevel,
+               timestampPattern: String = ActorLogger.defaultTimestampPattern,
+               printer: Printer[Id] = ActorLogger.defaultPrinter,
+             ): ActorRuntime =
     new ActorRuntime {
-      val autoYieldCount: Int = defaultYieldCount
 
-      val autoYieldTime: Option[FiniteDuration] = defaultYieldTime
+      override def makeBlocking[T](behavior: Behavior[T], parent: Parent): ActorFiber[T] = {
+        val token = ActorToken()
+        val state = FiberState.default(
+          fiberConfig,
+          parent,
+          token,
+        )
+        val execution = ShiftedExecution(
+          blockingEC,
+          state
+        )
+        ActorFiber[T](
+          state,
+          execution,
+          behavior,
+          reporter,
+        )
+      }
+
+      override def makePinned[T](behavior: Behavior[T], parent: Parent): ActorFiber[T] = ???
+
+      override def makeAsync[T](behavior: Behavior[T], parent: Parent): ActorFiber[T] = ???
 
       val logger: Logger = RuntimeLogger(logLevel, timestampPattern, printer)
 
-      val pinnedActorThreadPool: PinnedActorThreadPool =
-        PinnedActorThreadPool(
-          0,
-          Scheduler.availableProcessors,
-          Scheduler.defaultKeepAlive,
-          DefaultThreadFactory(
-            pinned,
-            Logger.asUncaughtExceptionHandler(logger)
-          ),
-        )
-        
-      watchExternalPinned()
+      private val reporter = Logger.asUncaughtExceptionHandler(logger)
 
       val scheduler: Scheduler = Scheduler.default(logger)
 
-      export scheduler.{shutdown as _, *}
-
-      override def shutdown(): Unit = {
-        scheduler.shutdown()
-        pinnedActorThreadPool.shutdown()
-      }
+      export scheduler.*
 
     }
 

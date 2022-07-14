@@ -8,6 +8,7 @@ lazy val root = (project in file("."))
     resolvers ++= Dependencies.resolvers,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode" % "0.2.8",
+      "org.jctools" % "jctools-core" % "3.3.0",
       Dependencies.JBox2D(),
       Dependencies.JOML(),
       "org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.4",

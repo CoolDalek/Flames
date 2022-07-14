@@ -3,11 +3,16 @@ package flames.util
 import scala.deriving.*
 import scala.compiletime.*
 import scala.reflect.*
+import scala.util.NotGiven
 
 @FunctionalInterface
 trait Show[T] {
 
-  def show(obj: T): String
+  extension (self: T) {
+
+    def show: String
+
+  }
 
 }
 object Show extends Summoner[Show] {
@@ -16,7 +21,7 @@ object Show extends Summoner[Show] {
 
   def unsafeShow[T]: Show[T] = unsafeInstance.asInstanceOf[Show[T]]
 
-  given [T <: Product]: Show[T] = unsafeShow
+  given toStringShow[T <: Product]: Show[T] = unsafeShow
 
   inline def summonInstances[T <: Tuple]: List[Show[_]] =
     inline erasedValue[T] match
@@ -32,7 +37,7 @@ object Show extends Summoner[Show] {
           val index = sum.ordinal(obj)
           elements(index).asInstanceOf[Show[T]].show(obj)
         }
-      case product: Mirror.ProductOf[T] =>
+      case _: Mirror.ProductOf[T] =>
         inline val name = valueOf[mirror.MirroredLabel]
         (obj: T) => {
           val all = obj.asInstanceOf[Product]
@@ -61,18 +66,17 @@ object Show extends Summoner[Show] {
     builder.result
   }
 
+  inline given erasedIterable[T: Show, R <: Iterable[T]](using NotGiven[ClassTag[R]]): Show[R] =
+    (obj: R) => {
+      val name = "Erased iterable"
+      Show.iterable(name, obj)(_.show)
+    }
+
 }
-given Show[String] = identity
-given [T <: AnyVal]: Show[T] = Show.unsafeShow
-given [T: Show, R <: Iterable[T]](using ClassTag[R]): Show[R] =
+inline given Show[String] = identity
+inline given [T <: AnyVal]: Show[T] = Show.unsafeShow
+inline given [T: Show, R <: Iterable[T]: ClassTag]: Show[R] =
   (obj: R) => {
     val name = classTag[R].runtimeClass.getSimpleName
-    Show.iterable(name, obj) { elem =>
-      elem.show
-    }
+    Show.iterable(name, obj)(_.show)
   }
-extension [T: Show](obj: T) {
-
-  inline def show: String = Show[T].show(obj)
-
-}

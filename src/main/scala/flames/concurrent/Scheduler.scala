@@ -8,6 +8,7 @@ import scala.util.chaining.*
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.*
+import scala.annotation.threadUnsafe
 
 trait Scheduler extends ExecutionContext with Shutdown { self =>
 
@@ -17,7 +18,8 @@ trait Scheduler extends ExecutionContext with Shutdown { self =>
   
   inline def blocking(inline action: => Unit): Unit = blocking(() => action)
 
-  val blockingEC: ExecutionContext = new ExecutionContext {
+  @threadUnsafe
+  lazy val blockingEC: ExecutionContext = new ExecutionContext {
     
     override def execute(runnable: Runnable): Unit = self.blocking(runnable)
 

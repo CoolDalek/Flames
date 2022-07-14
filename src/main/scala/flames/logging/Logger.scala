@@ -7,7 +7,7 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 import scala.Ordering.Implicits.*
 import LogLevel.*
-import flames.util.{Show, show}
+import flames.util.Show
 
 trait Logger {
 
