@@ -175,9 +175,9 @@ final class ActorFiber[T](
 object ActorFiber {
   type ProcessResult = EmptyQueue | Continue | Break
   type EmptyQueue = 1
-  val EmptyQueue: EmptyQueue = 1
+  inline val EmptyQueue: EmptyQueue = 1
   type Continue = 2
-  val Continue: Continue = 2
+  inline val Continue: Continue = 2
   type Break = 3
-  val Break: Break = 3
+  inline val Break: Break = 3
 }
