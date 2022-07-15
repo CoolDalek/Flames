@@ -14,7 +14,7 @@ import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
-sealed trait ActorRuntime extends ActorScheduler {
+trait ActorRuntime extends ActorScheduler {
 
   protected given ActorRuntime = this
 
@@ -117,7 +117,7 @@ object ActorRuntime {
                                        inline executionFactory: FiberState[T] => ExecutionStrategy.Factory,
                                        behavior: Behavior[T],
                                        parent: ActorParent,
-                              ): ActorFiber[T] =
+                                     ): ActorFiber[T] =
         val token = ActorToken()
         val state = FiberState.default[T](
           fiberConfig,
@@ -133,7 +133,11 @@ object ActorRuntime {
         )
       end makeFiber
 
-      inline private def makeShifted[T](ec: ExecutionContext, behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
+      inline private def makeShifted[T](
+                                         ec: ExecutionContext,
+                                         behavior: Behavior[T],
+                                         parent: ActorParent,
+                                       ): ActorFiber[T] =
         val fiber = makeFiber[T](
           state => ShiftedExecution[T](
             ec,
