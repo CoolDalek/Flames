@@ -1,7 +1,10 @@
 package flames.concurrent.actor
 
-import scala.util.control.NonFatal
+import Behavior.*
 import BehaviorTag.*
+
+import scala.util.control.NonFatal
+import scala.annotation.switch
 
 sealed trait Behavior[+T] {
   private[actor] def tag: BehaviorTag
@@ -25,13 +28,13 @@ private[actor] object Behavior {
   }
 
 }
-import Behavior.*
 extension [T](behavior: Behavior[T]) {
 
+  //TODO: reimplement as macros
   inline private def handleWith(inline handler: Throwable => Behavior[T]): Behavior[T] = {
-    inline behavior match {
-      case receive: Receive[T] =>
-        inline val act = receive.act
+    (behavior.tag: @switch) match {
+      case ReceiveTag =>
+        val act = behavior.asInstanceOf[Receive[T]].act
         Receive[T]( msg =>
           try {
             act(msg)
@@ -39,7 +42,7 @@ extension [T](behavior: Behavior[T]) {
             case NonFatal(exc) => handler(exc)
           }
         )
-      case pass => pass
+      case _ => behavior
     }
   }
 
