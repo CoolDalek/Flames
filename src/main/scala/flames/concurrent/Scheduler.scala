@@ -47,10 +47,8 @@ object Scheduler {
                interruptOnCancel: Boolean = false,
              ): Scheduler = new Scheduler {
 
-    private val reporter = Logger.asUncaughtExceptionHandler(logger)
-
     private def factory(poolName: String, priority: Int = Thread.NORM_PRIORITY): DefaultThreadFactory =
-      DefaultThreadFactory(poolName, reporter, priority)
+      DefaultThreadFactory(poolName, logger, priority)
 
     private val timer =
       ScheduledThreadPoolExecutor(
@@ -75,7 +73,7 @@ object Scheduler {
       new ForkJoinPool(
         minComputeThreads,
         factory("Compute"),
-        reporter,
+        logger,
         false,
         minComputeThreads,
         maxComputeThreads,

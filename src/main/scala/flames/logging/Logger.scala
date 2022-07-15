@@ -7,9 +7,9 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 import scala.Ordering.Implicits.*
 import LogLevel.*
-import flames.util.Show
+import flames.util.*
 
-trait Logger {
+trait Logger extends UncaughtExceptionHandler with FailureReporter {
 
   def log(event: LogEvent): Unit
 
@@ -81,10 +81,10 @@ trait Logger {
   inline def error(exc: Throwable, msg: => String)(using Enclosing, Line): Unit =
     log(Error, msg, exc)
 
-}
-object Logger {
+  inline def uncaughtException(t: Thread, e: Throwable): Unit =
+    error(e, s"Unexpected exception in thread ${t.getName}.")
 
-  def asUncaughtExceptionHandler(logger: Logger, logLevel: LogLevel = Error): UncaughtExceptionHandler =
-    (t: Thread, e: Throwable) => logger.log(logLevel, s"Unexpected exception in thread ${t.getName}.", e)
+  inline def reportFailure(exc: Throwable): Unit =
+    error(exc)
 
 }

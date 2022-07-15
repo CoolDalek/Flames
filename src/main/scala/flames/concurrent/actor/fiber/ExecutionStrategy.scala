@@ -1,11 +1,15 @@
 package flames.concurrent.actor.fiber
 
-trait ExecutionStrategy {
+trait ExecutionStrategy extends Runnable {
   
-  def sleep(continuation: => Unit): Unit
+  def sleep(): Unit
 
-  def `yield`(continuation: => Unit): Unit
+  def `yield`(): Unit
 
-  def continue(continuation: => Unit): Unit
+  def continue(): Unit
   
+}
+object ExecutionStrategy {
+  type Continuation = Runnable
+  type Factory = Continuation => ExecutionStrategy
 }

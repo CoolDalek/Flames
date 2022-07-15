@@ -3,6 +3,7 @@ package flames.concurrent.actor.fiber
 import flames.concurrent.{AtomicProcessState, ProcessState}
 import flames.concurrent.ProcessState.*
 import flames.util.FailureReporter
+import flames.util.Nullable.*
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicReference
@@ -16,15 +17,22 @@ import ActorFiber.*
 
 final class ActorFiber[T](
                            private val state: FiberState[T],
-                           private val execution: ExecutionStrategy,
                            private var behavior: Behavior[T],
                            private val reporter: FailureReporter,
-                         ) {
+                           executionFactory: ExecutionStrategy.Factory,
+                         ) extends Runnable {
   import state.procState
   export state.token
 
-  def addChild(token: ActorToken, actor: ActorRef[Nothing]): Unit =
-    state.addChild(token, actor)
+  private val execution = executionFactory(executionLoop _)
+
+  override def run(): Unit = {
+    procState.set(Running)
+    execution.run()
+  }
+
+  def addChild(actor: ActorRef[Nothing]): Unit =
+    state.addChild(actor.token, actor)
 
   def removeChild(token: ActorToken): Unit =
     state.removeChild(token)
@@ -36,12 +44,14 @@ final class ActorFiber[T](
     getChilds.foreach(_.silentStop())
 
   private def reportStop(reason: StopReason): Unit =
-    state.parent.systemTell(
-      SystemMessage.ChildStopped(
-        token,
-        reason,
+    state.parent.foreach { nn =>
+      nn.systemTell(
+        SystemMessage.ChildStopped(
+          token,
+          reason,
+        )
       )
-    )
+    }
 
   @tailrec
   def stop(silent: Boolean): Unit = {
@@ -78,7 +88,7 @@ final class ActorFiber[T](
         put(msg)
       case Idle =>
         put(msg)
-        execution.continue(executionLoop())
+        execution.continue()
     }
 
   protected final def executionLoop(): Unit =
@@ -88,11 +98,11 @@ final class ActorFiber[T](
       if (yieldCount > 0 && System.nanoTime() < deadline) {
         processSystem {
           processUser {
-            execution.sleep(executionLoop())
+            execution.sleep()
           }
         }
       } else {
-        execution.`yield`(executionLoop())
+        execution.`yield`()
       }
     }
   end executionLoop

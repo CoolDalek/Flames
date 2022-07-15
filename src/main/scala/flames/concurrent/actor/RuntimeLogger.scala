@@ -1,39 +1,53 @@
 package flames.concurrent.actor
 
 import flames.concurrent.actor.RuntimeLogger.*
+import flames.concurrent.actor.fiber.*
 import flames.logging.{LogEvent, LogLevel, Printer}
 import flames.util.Id
+
+import scala.annotation.threadUnsafe
 
 private[concurrent] final class RuntimeLogger(
                                                lvl: LogLevel,
                                                pattern: String,
                                                printer: Printer[Id]
-                                             )(using ActorRuntime)
-  extends ActorLogger(lvl, pattern, printer) with AnyActor[LogEvent] {
+                                             )(using ActorEnv)
+  extends ActorLogger[ActorType.Pinned](lvl, pattern, printer) {
 
-  override protected def makeFiber: ActorFiber[LogEvent] = new PinnedFiber(runtime, act(), null) {
-
-    override protected[concurrent] def initialize(): PinnedFiber[LogEvent] = {
-      makeLoggerThread { () =>
-        safeRun()
-      }.start()
-      this
-    }
-
+  @threadUnsafe
+  override lazy val fiber: ActorFiber[LogEvent] = {
+    val token = ActorToken()
+    val state = FiberState.default[LogEvent](
+      runtime.fiberConfig,
+      null,
+      token,
+    )
+    val executionFactory = PinnedExecution[LogEvent](state)
+    val fiber = ActorFiber[LogEvent](
+      state,
+      act(),
+      logError,
+      executionFactory,
+    )
+    makeLoggerThread(fiber).start()
+    fiber
   }
 
 }
 object RuntimeLogger {
 
-  def makeLoggerThread: PinnedFiber.MakeThread =
-    (runnable: Runnable) => {
+  private def logError(exc: Throwable): Unit = {
+    println("Exception in logger thread.")
+    exc.printStackTrace()
+  }
+
+  private def makeLoggerThread(runnable: Runnable) =
       val thread = new Thread(runnable, "Logger")
       thread.setDaemon(true)
-      thread.setUncaughtExceptionHandler { (t, e) =>
-        println("Exception in logger thread.")
-        e.printStackTrace()
+      thread.setUncaughtExceptionHandler { (_, exc) =>
+        logError(exc)
       }
       thread
-    }
+  end makeLoggerThread
 
 }

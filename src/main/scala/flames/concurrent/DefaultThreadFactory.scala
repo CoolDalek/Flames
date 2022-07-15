@@ -1,6 +1,6 @@
 package flames.concurrent
 
-import flames.concurrent.actor.{PinnedActorThread, PinnedActorThreadFactory, PinnedActorThreadPool}
+import flames.concurrent.actor.*
 
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.{ForkJoinPool, ForkJoinWorkerThread, ThreadFactory}

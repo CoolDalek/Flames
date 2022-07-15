@@ -2,7 +2,7 @@ package flames.concurrent.actor.fiber
 
 import flames.concurrent.{AtomicProcessState, ProcessState}
 import flames.concurrent.actor.mailbox.{Mailbox, SystemMessage}
-import flames.concurrent.actor.{ActorRef, FiberState, ActorToken}
+import flames.concurrent.actor.{ActorParent, ActorRef, ActorToken}
 import flames.util.Nullable.*
 import org.jctools.queues.MpscLinkedQueue
 import org.jctools.queues.atomic.{MpscUnboundedAtomicArrayQueue, SpscUnboundedAtomicArrayQueue}
@@ -11,7 +11,7 @@ import scala.collection.mutable
 
 trait FiberState[T](
                      val config: FiberConfig,
-                     val parent: ActorRef[Nothing] | Null,
+                     val parent: ActorParent,
                      val token: ActorToken,
                    ) {
 
@@ -57,9 +57,14 @@ object FiberState {
     new FiberState[T](_config, _parent, _token) {
       import config.*
 
+      //Single consumer because only 1 thread can read this at a time,
+      // and every thread change synchronized on execution context.
+      // At least, I hope this is fine...
       private val userQueue = new MpscUnboundedAtomicArrayQueue[T](userChunkSize)
+      // There is only 1 timer thread by default, so single producer is fine
       private val timerQueue = new SpscUnboundedAtomicArrayQueue[T](timerChunkSize)
-      private val systemQueue = new SpscUnboundedAtomicArrayQueue[SystemMessage](systemChunkSize)
+      // There is no common system event bus, so messages can be passed from different threads simultaneously
+      private val systemQueue = new MpscUnboundedAtomicArrayQueue[SystemMessage](systemChunkSize)
 
       override val systemMail: Mailbox[SystemMessage] = new Mailbox[SystemMessage] {
 

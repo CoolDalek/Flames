@@ -3,25 +3,36 @@ package flames.concurrent.actor.fiber
 import flames.concurrent.ProcessState.*
 
 import scala.concurrent.ExecutionContext
+import ExecutionStrategy.*
 
-class ShiftedExecution[T](ec: ExecutionContext, state: FiberState[T]) extends ExecutionStrategy {
+class ShiftedExecution[T](
+                           continuation: Continuation,
+                           ec: ExecutionContext,
+                           state: FiberState[T],
+                         ) extends ExecutionStrategy {
   import state.procState
 
-  private def run(continuation: => Unit): Unit =
-    ec.execute(() => continuation)
+  override def run(): Unit =
+    ec.execute(continuation)
 
-  override def sleep(continuation: => Unit): Unit = {
+  override def sleep(): Unit = {
     state.loop = false
     procState.set(Idle)
-    if (state.hasMessage) continue(continuation)
+    if (state.hasMessage) continue()
   }
 
-  override def `yield`(continuation: => Unit): Unit = {
+  override def `yield`(): Unit = {
     state.loop = false
-    if(procState.compareAndSet(Running, Running)) run(continuation)
+    if(procState.compareAndSet(Running, Running)) run()
   }
 
-  override def continue(continuation: => Unit): Unit =
-    if (procState.compareAndSet(Idle, Running)) run(continuation)
+  override def continue(): Unit =
+    if (procState.compareAndSet(Idle, Running)) run()
+
+}
+object ShiftedExecution {
+
+  def apply[T](ec: ExecutionContext, state: FiberState[T]): Factory =
+    cont => new ShiftedExecution[T](cont, ec, state)
 
 }

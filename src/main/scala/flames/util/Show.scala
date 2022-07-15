@@ -74,6 +74,14 @@ object Show extends Summoner[Show] {
 
 }
 inline given Show[String] = identity
+inline given Show[Byte] = Show.unsafeShow
+inline given Show[Short] = Show.unsafeShow
+inline given Show[Int] = Show.unsafeShow
+inline given Show[Long] = Show.unsafeShow
+inline given Show[Float] = Show.unsafeShow
+inline given Show[Double] = Show.unsafeShow
+inline given Show[Boolean] = Show.unsafeShow
+inline given Show[Char] = Show.unsafeShow
 inline given [T <: AnyVal]: Show[T] = Show.unsafeShow
 inline given [T: Show, R <: Iterable[T]: ClassTag]: Show[R] =
   (obj: R) => {

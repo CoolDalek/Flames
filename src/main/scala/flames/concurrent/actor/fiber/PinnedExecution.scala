@@ -1,34 +1,38 @@
 package flames.concurrent.actor.fiber
 
 import flames.concurrent.ProcessState.*
+import ExecutionStrategy.*
 
-class PinnedExecution[T](state: FiberState[T]) extends ExecutionStrategy with Runnable {
+class PinnedExecution[T](
+                          continuation: Continuation,
+                          state: FiberState[T],
+                        ) extends ExecutionStrategy {
   import state.procState
 
-  private type Cont = () => Unit
-  private var cont: Cont = null.asInstanceOf[Cont]
+  override def run(): Unit =
+    continuation.run()
 
-  override def run(): Unit = {
-    synchronized(wait())
-    cont()
-  }
-
-  override def sleep(continuation: => Unit): Unit = {
+  override def sleep(): Unit = {
     procState.set(Idle)
     if (state.hasMessage) procState.set(Running)
     else synchronized(wait())
     state.prepare()
   }
 
-  override def `yield`(continuation: => Unit): Unit = {
+  override def `yield`(): Unit = {
     Thread.`yield`()
     state.prepare()
   }
 
-  override def continue(continuation: => Unit): Unit =
+  override def continue(): Unit =
     if (procState.compareAndSet(Idle, Running)) {
-      cont = () => continuation
       synchronized(notify())
     }
 
+}
+object PinnedExecution {
+  
+  def apply[T](state: FiberState[T]): Factory =
+    cont => new PinnedExecution[T](cont, state)
+  
 }

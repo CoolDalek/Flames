@@ -9,3 +9,8 @@ case class FiberConfig(
                         autoYieldCount: Int = 8,
                         autoYieldTime: Option[FiniteDuration] = None,
                       )
+object FiberConfig {
+  
+  val default: FiberConfig = FiberConfig()
+  
+}

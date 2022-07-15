@@ -14,4 +14,6 @@ trait ActorRef[-T] {
   
   private[concurrent] def silentStop(): Unit
 
+  def token: ActorToken
+
 }

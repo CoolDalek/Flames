@@ -2,6 +2,7 @@ package flames.concurrent.actor
 
 import flames.concurrent.*
 import flames.concurrent.actor.fiber.*
+import flames.concurrent.actor.*
 import flames.logging.*
 import flames.util.Id
 
@@ -15,15 +16,22 @@ import scala.concurrent.duration.FiniteDuration
 
 sealed trait ActorRuntime extends ActorScheduler {
 
+  protected given ActorRuntime = this
+
+  def fiberConfig: FiberConfig
+
   def logger: Logger
 
-  private type Parent = ActorRef[Nothing] | Null
+  def spawn[Message, Type <: ActorType](actor: Actor[Message, Type]): ActorRef[Message] = {
+    actor.fiber // trigger initialization
+    actor.self
+  }
 
-  private[actor] def makeBlocking[T](behavior: Behavior[T], parent: Parent): ActorFiber[T]
+  private[actor] def makeBlocking[T](behavior: Behavior[T], parent: ActorParent): ActorFiber[T]
 
-  private[actor] def makePinned[T](behavior: Behavior[T], parent: Parent): ActorFiber[T]
+  private[actor] def makePinned[T](behavior: Behavior[T], parent: ActorParent): ActorFiber[T]
 
-  private[actor] def makeAsync[T](behavior: Behavior[T], parent: Parent): ActorFiber[T]
+  private[actor] def makeAsync[T](behavior: Behavior[T], parent: ActorParent): ActorFiber[T]
 
   override def scheduleMessage[T](delay: FiniteDuration, to: ActorRef[T], message: T): Cancellable =
     schedule(delay)(to.timerTell(message))
@@ -34,63 +42,127 @@ sealed trait ActorRuntime extends ActorScheduler {
 }
 object ActorRuntime {
 
-  val defaultYieldTime: Option[FiniteDuration] = None
-  val defaultYieldCount: Int = 8
+  // Same as [T] =>> ((Behavior[T], ActorParent, Scheduler, FiberConfig) => ActorFiber[T])
+  // But for some reason lambda requires to set type parameter when passed
+  trait FiberFactory {
+
+    def apply[T](behavior:Behavior[T], parent: ActorParent, scheduler: Scheduler, config: FiberConfig): ActorFiber[T]
+
+  }
 
   private class SimpleRuntime(
                                val logger: Logger,
-                               val autoYieldCount: Int,
-                               val autoYieldTime: Option[FiniteDuration],
-                               scheduler: Scheduler
+                               val fiberConfig: FiberConfig,
+                               val scheduler: Scheduler,
+                               blockingFactory: FiberFactory,
+                               pinnedFactory: FiberFactory,
+                               asyncFactory: FiberFactory,
                              ) extends ActorRuntime {
     export scheduler.*
+
+    override private[actor] def makeBlocking[T](behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
+      blockingFactory[T](
+        behavior,
+        parent,
+        scheduler,
+        fiberConfig,
+      )
+
+    override private[actor] def makePinned[T](behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
+      pinnedFactory[T](
+        behavior,
+        parent,
+        scheduler,
+        fiberConfig,
+      )
+
+    override private[actor] def makeAsync[T](behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
+      asyncFactory[T](
+        behavior,
+        parent,
+        scheduler,
+        fiberConfig,
+      )
+
   }
 
-  def apply(logger: Logger,
-            scheduler: Scheduler,
-            autoYieldCount: Int = defaultYieldCount,
-            autoYieldTime: Option[FiniteDuration] = defaultYieldTime): ActorRuntime =
+  def apply(
+             logger: Logger,
+             scheduler: Scheduler,
+             blockingFactory: FiberFactory,
+             pinnedFactory: FiberFactory,
+             asyncFactory: FiberFactory,
+             fiberConfig: FiberConfig = FiberConfig.default,
+           ): ActorRuntime =
     new SimpleRuntime(
       logger = logger,
-      autoYieldCount = autoYieldCount,
-      autoYieldTime = autoYieldTime,
+      fiberConfig = fiberConfig,
       scheduler = scheduler,
+      blockingFactory = blockingFactory,
+      pinnedFactory = pinnedFactory,
+      asyncFactory = asyncFactory,
     )
 
   def default(
-               fiberConfig: FiberConfig = FiberConfig(),
                logLevel: LogLevel,
+               _fiberConfig: FiberConfig = FiberConfig.default,
                timestampPattern: String = ActorLogger.defaultTimestampPattern,
                printer: Printer[Id] = ActorLogger.defaultPrinter,
              ): ActorRuntime =
     new ActorRuntime {
 
-      override def makeBlocking[T](behavior: Behavior[T], parent: Parent): ActorFiber[T] = {
+      override val fiberConfig: FiberConfig = _fiberConfig
+
+      inline private def makeFiber[T](
+                                       inline executionFactory: FiberState[T] => ExecutionStrategy.Factory,
+                                       behavior: Behavior[T],
+                                       parent: ActorParent,
+                              ): ActorFiber[T] =
         val token = ActorToken()
-        val state = FiberState.default(
+        val state = FiberState.default[T](
           fiberConfig,
           parent,
           token,
         )
-        val execution = ShiftedExecution(
-          blockingEC,
-          state
-        )
+        val execution = executionFactory(state)
         ActorFiber[T](
           state,
-          execution,
           behavior,
-          reporter,
+          logger,
+          execution,
         )
-      }
+      end makeFiber
 
-      override def makePinned[T](behavior: Behavior[T], parent: Parent): ActorFiber[T] = ???
+      inline private def makeShifted[T](ec: ExecutionContext, behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
+        val fiber = makeFiber[T](
+          state => ShiftedExecution[T](
+            ec,
+            state,
+          ),
+          behavior,
+          parent,
+        )
+        fiber.run()
+        fiber
+      end makeShifted
 
-      override def makeAsync[T](behavior: Behavior[T], parent: Parent): ActorFiber[T] = ???
+      override def makeBlocking[T](behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
+        makeShifted[T](blockingEC, behavior, parent)
+
+      override def makeAsync[T](behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
+        makeShifted[T](this, behavior, parent)
+
+      override def makePinned[T](behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
+        val fiber = makeFiber[T](
+          PinnedExecution.apply[T],
+          behavior,
+          parent,
+        )
+        blockingEC.execute(fiber)
+        fiber
+      end makePinned
 
       val logger: Logger = RuntimeLogger(logLevel, timestampPattern, printer)
-
-      private val reporter = Logger.asUncaughtExceptionHandler(logger)
 
       val scheduler: Scheduler = Scheduler.default(logger)
 

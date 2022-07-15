@@ -9,12 +9,11 @@ import java.io.PrintWriter
 import flames.util.{Id, Show, given}
 import ActorLogger.given
 
-trait ActorLogger(
+trait ActorLogger[Type <: ActorType](
                    override val logLevel: LogLevel,
                    timestampPattern: String,
                    printer: Printer[Id],
-                 )(using ActorRuntime) extends Logger {
-  this: AnyActor[LogEvent] =>
+                 ) extends Actor[LogEvent, Type] with Logger {
 
   override val timestampFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern(timestampPattern)
@@ -52,11 +51,11 @@ object ActorLogger {
       Console.println(Show[T].show(obj))
   }
 
-  def default(lvl: LogLevel,
-              pattern: String = defaultTimestampPattern,
-              printer: Printer[Id] = defaultPrinter,
-              customThread: PinnedFiber.CustomThread = PinnedFiber.defaultThread)
-             (using ActorRuntime): ActorLogger =
-    new ActorLogger(lvl, pattern, printer) with PinnedActor[LogEvent](customThread) {}
+  def default(
+               lvl: LogLevel,
+               pattern: String = defaultTimestampPattern,
+               printer: Printer[Id] = defaultPrinter,
+             )(using ActorEnv): ActorLogger[ActorType.Pinned] =
+    new ActorLogger[ActorType.Pinned](lvl, pattern, printer) {}
 
 }
