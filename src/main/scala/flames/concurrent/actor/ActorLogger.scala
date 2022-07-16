@@ -4,10 +4,12 @@ import flames.logging.*
 
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-
 import java.io.PrintWriter
-import flames.util.{Id, Show, given}
+import flames.util.*
+import flames.util.given
+import flames.util.Nullable.*
 import ActorLogger.given
+import flames.concurrent.actor.behavior.Behavior
 
 trait ActorLogger[Type <: ActorType](
                    override val logLevel: LogLevel,
@@ -34,12 +36,12 @@ trait ActorLogger[Type <: ActorType](
         }
       }
       same
-  }
+  }.ignoreSystem
 
 }
 object ActorLogger {
 
-  given Show[StackTraceElement] = Show.unsafeShow
+  given Show[StackTraceElement] = Show.unsafe.instance
 
   val defaultTimestampPattern: String = "yyyy-MM-dd HH:mm:ss.SSS"
 

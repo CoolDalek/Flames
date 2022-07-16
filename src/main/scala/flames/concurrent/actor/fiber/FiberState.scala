@@ -29,7 +29,7 @@ trait FiberState[T](
 
   def addChild(token: ActorToken, actor: ActorRef[Nothing]): Unit
 
-  def removeChild(token: ActorToken): Unit
+  def removeChild(token: ActorToken): Option[ActorRef[Nothing]]
 
   def getChilds: Set[ActorRef[Nothing]]
 
@@ -100,7 +100,7 @@ object FiberState {
       override def addChild(token: ActorToken, actor: ActorRef[Nothing]): Unit =
         childs.update(token, actor)
 
-      override def removeChild(token: ActorToken): Unit =
+      override def removeChild(token: ActorToken): Option[ActorRef[Nothing]] =
         childs.remove(token)
 
       override def getChilds: Set[ActorRef[Nothing]] =

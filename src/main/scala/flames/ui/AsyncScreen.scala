@@ -1,6 +1,7 @@
 package flames.ui
 
 import flames.concurrent.actor.*
+import flames.concurrent.actor.behavior.Behavior
 
 import java.util.concurrent.atomic.AtomicReference
 

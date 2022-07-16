@@ -16,12 +16,6 @@ trait Show[T] {
 
 }
 object Show extends Summoner[Show] {
-  
-  private val unsafeInstance: Show[Any] = _.toString
-
-  def unsafeShow[T]: Show[T] = unsafeInstance.asInstanceOf[Show[T]]
-
-  given toStringShow[T <: Product]: Show[T] = unsafeShow
 
   inline def summonInstances[T <: Tuple]: List[Show[_]] =
     inline erasedValue[T] match
@@ -65,26 +59,39 @@ object Show extends Summoner[Show] {
     builder += ')'
     builder.result
   }
+    
+  object unsafe {
 
-  inline given erasedIterable[T: Show, R <: Iterable[T]](using NotGiven[ClassTag[R]]): Show[R] =
-    (obj: R) => {
-      val name = "Erased iterable"
-      Show.iterable(name, obj)(_.show)
-    }
+    private val unsafeInstance: Show[Any] = _.toString
+
+    def instance[T]: Show[T] = unsafeInstance.asInstanceOf[Show[T]]
+
+    inline given anyVal[T <: AnyVal]: Show[T] = instance
+    
+    inline given product[T <: Product]: Show[T] = instance
+
+    inline given erasedIterable[T: Show, R <: Iterable[T]](using NotGiven[ClassTag[R]]): Show[R] =
+      (obj: R) => {
+        val name = "Erased iterable"
+        Show.iterable(name, obj)(_.show)
+      }
+
+    inline given iterable[T: Show, R <: Iterable[T]: ClassTag]: Show[R] =
+      (obj: R) => {
+        val name = classTag[R].runtimeClass.getSimpleName
+        Show.iterable(name, obj)(_.show)
+      }
+    
+  }
+
+  inline given Show[String] = identity
+  inline given Show[Byte] = unsafe.instance
+  inline given Show[Short] = unsafe.instance
+  inline given Show[Int] = unsafe.instance
+  inline given Show[Long] = unsafe.instance
+  inline given Show[Float] = unsafe.instance
+  inline given Show[Double] = unsafe.instance
+  inline given Show[Boolean] = unsafe.instance
+  inline given Show[Char] = unsafe.instance
 
 }
-inline given Show[String] = identity
-inline given Show[Byte] = Show.unsafeShow
-inline given Show[Short] = Show.unsafeShow
-inline given Show[Int] = Show.unsafeShow
-inline given Show[Long] = Show.unsafeShow
-inline given Show[Float] = Show.unsafeShow
-inline given Show[Double] = Show.unsafeShow
-inline given Show[Boolean] = Show.unsafeShow
-inline given Show[Char] = Show.unsafeShow
-inline given [T <: AnyVal]: Show[T] = Show.unsafeShow
-inline given [T: Show, R <: Iterable[T]: ClassTag]: Show[R] =
-  (obj: R) => {
-    val name = classTag[R].runtimeClass.getSimpleName
-    Show.iterable(name, obj)(_.show)
-  }

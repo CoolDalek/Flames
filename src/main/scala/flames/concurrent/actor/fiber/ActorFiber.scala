@@ -12,7 +12,8 @@ import scala.collection.mutable
 import scala.util.control.NonFatal
 import flames.concurrent.actor.*
 import flames.concurrent.actor.mailbox.*
-import flames.concurrent.actor.BehaviorTag.*
+import flames.concurrent.actor.behavior.*
+import flames.concurrent.actor.behavior.BehaviorTag.*
 import ActorFiber.*
 
 final class ActorFiber[T](
@@ -34,7 +35,7 @@ final class ActorFiber[T](
   def addChild(actor: ActorRef[Nothing]): Unit =
     state.addChild(actor.token, actor)
 
-  def removeChild(token: ActorToken): Unit =
+  def removeChild(token: ActorToken): Option[ActorRef[Nothing]] =
     state.removeChild(token)
 
   def getChilds: Set[ActorRef[Nothing]] =
@@ -44,10 +45,11 @@ final class ActorFiber[T](
     getChilds.foreach(_.silentStop())
 
   private def reportStop(reason: StopReason): Unit =
-    state.parent.foreach { nn =>
+    state.parent.notNull { nn =>
       nn.systemTell(
         SystemMessage.ChildStopped(
           token,
+          null,
           reason,
         )
       )
@@ -114,20 +116,32 @@ final class ActorFiber[T](
       message.tag match {
         case ChildStoppedTag =>
           val stopped = message.asInstanceOf[ChildStopped]
-          removeChild(stopped.child)
+          removeChild(stopped.childToken).foreach { ref =>
+            stopped.childRef = ref
+            if(behavior.tag == ReceiveTag) {
+              act(_.actSystem, stopped)
+            }
+          }
       }
     }
 
-  inline private def processUser(inline onEmpty: => Unit): Unit =
-    receiveMessage(state.userMail, onEmpty) { message =>
-      val receive = behavior.asInstanceOf[Behavior.Receive[T]]
-      val next = receive.act(message)
+  //TODO: Benchmark with and without inlining
+  inline def act[R](inline getter: Behavior.Receive[T] => GenericAct[T, R], inline msg: R): Unit =
+    val receive = behavior.asInstanceOf[Behavior.Receive[T]]
+    getter(receive).notNull { act =>
+      val next = act(msg)
       (next.tag: @switch) match {
         case SameTag =>
           behavior = receive
         case _ =>
           behavior = next
       }
+    }
+  end act
+
+  inline private def processUser(inline onEmpty: => Unit): Unit =
+    receiveMessage(state.userMail, onEmpty) { message =>
+      act(_.act, message)
     }
 
   private def receiveMessage[R](mailbox: Mailbox[R], onEmpty: => Unit)

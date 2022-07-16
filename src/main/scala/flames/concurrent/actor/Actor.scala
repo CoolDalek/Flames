@@ -2,6 +2,7 @@ package flames.concurrent.actor
 
 import flames.concurrent.actor.fiber.*
 import ActorType.*
+import flames.concurrent.actor.behavior.*
 import flames.concurrent.actor.mailbox.SystemMessage
 import flames.logging.Logger
 
@@ -65,9 +66,14 @@ trait Actor[T, Type <: ActorType](using ActorEnv, ValueOf[Type]) {
     ref
   }
 
-  inline protected def receive(inline act: StateAccess ?=> T => Behavior[T]): Behavior[T] = {
+  inline protected def receive(inline act: StateAccess ?=> T => Behavior[T]): ReceiveProtocol[T] = {
     given StateAccess = new StateAccess {}
-    Behavior.Receive(act)
+    BehaviorBuilder.Receive(act)
+  }
+  
+  inline protected def receiveSystem(inline act: StateAccess ?=> SystemMessage => Behavior[T]): ReceiveSystem[T] = {
+    given StateAccess = new StateAccess {}
+    BehaviorBuilder.Receive(act)
   }
 
   inline protected def same: Behavior[T] = Behavior.Same

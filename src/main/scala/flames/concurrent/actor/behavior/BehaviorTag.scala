@@ -1,9 +1,9 @@
-package flames.concurrent.actor
+package flames.concurrent.actor.behavior
 
 import BehaviorTag.*
 
-private[actor] type BehaviorTag = SameTag | ReceiveTag | StopTag
-private[actor] object BehaviorTag {
+type BehaviorTag = SameTag | ReceiveTag | StopTag
+object BehaviorTag {
   type SameTag = 1
   inline val SameTag: SameTag = 1
   type ReceiveTag = 2

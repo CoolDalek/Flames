@@ -7,11 +7,11 @@ sealed trait StopReason {
 }
 object StopReason {
   
-  object Shutdown extends StopReason {
+  case object Shutdown extends StopReason {
     val tag: ReasonTag = ShutdownTag
   }
   
-  class Failure(exc: Throwable) extends StopReason {
+  case class Failure(exc: Throwable) extends StopReason {
     val tag: ReasonTag = FailureTag
   } 
   

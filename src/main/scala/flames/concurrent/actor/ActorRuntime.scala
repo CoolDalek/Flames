@@ -3,6 +3,7 @@ package flames.concurrent.actor
 import flames.concurrent.*
 import flames.concurrent.actor.fiber.*
 import flames.concurrent.actor.*
+import flames.concurrent.actor.behavior.Behavior
 import flames.logging.*
 import flames.util.Id
 
