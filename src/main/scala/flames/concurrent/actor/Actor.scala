@@ -1,33 +1,40 @@
 package flames.concurrent.actor
 
+import flames.concurrent.execution.ExecutionModel
+import flames.concurrent.execution.ExecutionModel.*
 import flames.concurrent.actor.fiber.*
-import ActorType.*
 import flames.concurrent.actor.behavior.*
 import flames.concurrent.actor.mailbox.SystemMessage
 import flames.logging.Logger
+import sourcecode.Enclosing
 
 import scala.compiletime.*
 import scala.annotation.threadUnsafe
 
-trait Actor[T, Type <: ActorType](using ActorEnv, ValueOf[Type]) {
+trait Actor[T, Execution <: ExecutionModel](using ActorEnv, ValueOf[Execution]) {
 
   protected val runtime: ActorRuntime = ActorEnv.runtime
+  
+  protected def name: String = getClass.getSimpleName
 
   @threadUnsafe
   private[actor] lazy val fiber: ActorFiber[T] =
-    valueOf[Type] match {
+    valueOf[Execution] match {
       case Blocking =>
         runtime.makeBlocking[T](
+          name,
           act(),
           ActorEnv.parent
         )
       case Pinned =>
         runtime.makePinned[T](
+          name,
           act(),
           ActorEnv.parent
         )
       case Async =>
         runtime.makeAsync[T](
+          name,
           act(),
           ActorEnv.parent
         )

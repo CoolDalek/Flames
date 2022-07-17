@@ -10,12 +10,16 @@ import flames.util.given
 import flames.util.Nullable.*
 import ActorLogger.given
 import flames.concurrent.actor.behavior.Behavior
+import flames.concurrent.execution.ExecutionModel
 
-trait ActorLogger[Type <: ActorType](
-                   override val logLevel: LogLevel,
-                   timestampPattern: String,
-                   printer: Printer[Id],
-                 ) extends Actor[LogEvent, Type] with Logger {
+trait ActorLogger[Model <: ExecutionModel](
+                                            override val logLevel: LogLevel, 
+                                            timestampPattern: String, 
+                                            printer: Printer[Id],
+                                          ) extends Actor[LogEvent, Model] with Logger {
+
+
+  override protected val name: String = "logger"
 
   override val timestampFormat: DateTimeFormatter =
     DateTimeFormatter.ofPattern(timestampPattern)
@@ -57,7 +61,7 @@ object ActorLogger {
                lvl: LogLevel,
                pattern: String = defaultTimestampPattern,
                printer: Printer[Id] = defaultPrinter,
-             )(using ActorEnv): ActorLogger[ActorType.Pinned] =
-    new ActorLogger[ActorType.Pinned](lvl, pattern, printer) {}
+             )(using ActorEnv): ActorLogger[ExecutionModel.Pinned] =
+    new ActorLogger[ExecutionModel.Pinned](lvl, pattern, printer) {}
 
 }

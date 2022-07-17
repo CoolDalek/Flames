@@ -2,8 +2,10 @@ package flames.concurrent.actor
 
 import flames.concurrent.actor.RuntimeLogger.*
 import flames.concurrent.actor.fiber.*
-import flames.logging.{LogEvent, LogLevel, Printer}
-import flames.util.Id
+import flames.logging.*
+import flames.util.{Id, Show}
+import flames.concurrent.execution.ExecutionModel
+import sourcecode.{Enclosing, Line}
 
 import scala.annotation.threadUnsafe
 
@@ -12,29 +14,36 @@ private[concurrent] final class RuntimeLogger(
                                                pattern: String,
                                                printer: Printer[Id]
                                              )(using ActorEnv)
-  extends ActorLogger[ActorType.Pinned](lvl, pattern, printer) {
+  extends ActorLogger[ExecutionModel.Pinned](lvl, pattern, printer) {
 
   @threadUnsafe
   override lazy val fiber: ActorFiber[LogEvent] = {
-    val token = ActorToken()
+    val token = runtime.tokenFactory("logger", ActorParent.root)
     val state = FiberState.default[LogEvent](
+      runtime.config.timerThreads,
       runtime.fiberConfig,
-      null,
+      ActorParent.root,
       token,
     )
     val executionFactory = PinnedExecution[LogEvent](state)
     val fiber = ActorFiber[LogEvent](
       state,
       act(),
-      logError,
+      reporter,
+      runtime,
       executionFactory,
     )
     makeLoggerThread(fiber).start()
+    runtime.addRootChild(fiber.token, self)
     fiber
   }
 
 }
 object RuntimeLogger {
+
+  private def reporter = new FailureReporter {
+    override def reportFailure[T: Show](exc: Throwable, ctx: => T)(using Enclosing, Line): Unit = logError(exc)
+  }
 
   private def logError(exc: Throwable): Unit = {
     println("Exception in logger thread.")

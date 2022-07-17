@@ -1,6 +1,5 @@
 package flames.concurrent.actor
 
-type ActorParent = ActorRef[Nothing] | Null
 type ActorEnv = (ActorRuntime, ActorParent)
 type ActorFactory[T] = ActorEnv ?=> Actor[T, ?]
 object ActorEnv {
@@ -14,4 +13,4 @@ object ActorEnv {
   inline def withParent(parent: ActorParent)(using env: ActorEnv): ActorEnv = (runtime, parent)
 
 }
-inline given (using runtime: ActorRuntime): ActorEnv = (runtime, null) 
+inline given (using runtime: ActorRuntime): ActorEnv = (runtime, ActorParent.root)

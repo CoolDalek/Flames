@@ -1,6 +1,6 @@
 package flames.concurrent.actor.fiber
 
-import flames.concurrent.ProcessState.*
+import flames.concurrent.execution.ProcessState.*
 
 import scala.concurrent.ExecutionContext
 import ExecutionStrategy.*

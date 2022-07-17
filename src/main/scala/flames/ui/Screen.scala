@@ -1,3 +1,3 @@
 package flames.ui
 
-trait Screen extends UIListener with AutoCloseable
+trait Screen extends UIListener

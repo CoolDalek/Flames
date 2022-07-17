@@ -1,11 +1,12 @@
 package flames.ui
 
+import flames.concurrent.execution.*
 import flames.concurrent.actor.*
 import flames.concurrent.actor.behavior.Behavior
 
 import java.util.concurrent.atomic.AtomicReference
 
-trait AsyncScreen[T, Type <: ActorType] extends Screen with Actor[T, Type] {
+trait AsyncScreen[T, R <: ExecutionModel] extends Screen with Actor[T, R] {
   type State
   protected def initialState: State
   private lazy val state = AtomicReference(initialState)

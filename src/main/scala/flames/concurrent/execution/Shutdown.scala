@@ -1,4 +1,4 @@
-package flames.concurrent
+package flames.concurrent.execution
 
 trait Shutdown extends AutoCloseable {
   

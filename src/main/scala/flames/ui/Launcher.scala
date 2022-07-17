@@ -1,7 +1,7 @@
 package flames.ui
 
 import flames.ui.WindowSize.*
-import flames.util.FailureReporter
+import flames.logging.FailureReporter
 import org.jetbrains.skija.*
 import org.jetbrains.skija.impl.Library as SkjaLib
 import org.lwjgl.glfw.*
@@ -39,7 +39,7 @@ object Launcher {
           errorCodes.get(error),
           GLFWErrorCallback.getDescription(description),
         )
-        config.failureReporter.reportFailure(exc)
+        config.failureReporter.reportFailure(exc, "Error in GLFW.")
       }
     }.set()
 
@@ -199,7 +199,7 @@ object Launcher {
 
     } catch {
       case NonFatal(exc) =>
-        config.reportFailure(exc)
+        config.reportFailure(exc, "Exception during UI initialization or render.")
     } finally {
       glfwFreeCallbacks(window)
       glfwDestroyWindow(window)
@@ -210,7 +210,7 @@ object Launcher {
 
   } catch {
     case NonFatal(exc) =>
-      config.reportFailure(exc)
+      config.reportFailure(exc, "Exception during UI initialization.")
   }
 
 }

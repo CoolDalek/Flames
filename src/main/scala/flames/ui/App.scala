@@ -1,6 +1,6 @@
 package flames.ui
 
-import flames.util.FailureReporter
+import flames.logging.FailureReporter
 import org.jetbrains.skija.Canvas
 
 final class App private(

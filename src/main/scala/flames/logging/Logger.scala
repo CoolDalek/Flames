@@ -9,7 +9,7 @@ import scala.Ordering.Implicits.*
 import LogLevel.*
 import flames.util.*
 
-trait Logger extends UncaughtExceptionHandler with FailureReporter {
+trait Logger extends UncaughtExceptionHandler {
 
   def log(event: LogEvent): Unit
 
@@ -83,8 +83,5 @@ trait Logger extends UncaughtExceptionHandler with FailureReporter {
 
   inline def uncaughtException(t: Thread, e: Throwable): Unit =
     error(e, s"Unexpected exception in thread ${t.getName}.")
-
-  inline def reportFailure(exc: Throwable): Unit =
-    error(exc)
 
 }

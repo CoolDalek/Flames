@@ -1,8 +1,7 @@
 package flames.concurrent.actor.fiber
 
-import flames.concurrent.{AtomicProcessState, ProcessState}
-import flames.concurrent.ProcessState.*
-import flames.util.FailureReporter
+import flames.concurrent.execution.*
+import flames.concurrent.execution.ProcessState.*
 import flames.util.Nullable.*
 
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -14,12 +13,14 @@ import flames.concurrent.actor.*
 import flames.concurrent.actor.mailbox.*
 import flames.concurrent.actor.behavior.*
 import flames.concurrent.actor.behavior.BehaviorTag.*
+import flames.logging.FailureReporter
 import ActorFiber.*
 
 final class ActorFiber[T](
                            private val state: FiberState[T],
                            private var behavior: Behavior[T],
                            private val reporter: FailureReporter,
+                           private val runtime: ActorRuntime,
                            executionFactory: ExecutionStrategy.Factory,
                          ) extends Runnable {
   import state.procState
@@ -45,7 +46,11 @@ final class ActorFiber[T](
     getChilds.foreach(_.silentStop())
 
   private def reportStop(reason: StopReason): Unit =
-    state.parent.notNull { nn =>
+    import state.parent
+    if(parent == ActorParent.root) {
+      runtime.removeRootChild(token)
+    } else {
+      val nn = parent.asInstanceOf[ActorRef[Nothing]]
       nn.systemTell(
         SystemMessage.ChildStopped(
           token,
@@ -54,6 +59,7 @@ final class ActorFiber[T](
         )
       )
     }
+  end reportStop
 
   @tailrec
   def stop(silent: Boolean): Unit = {
@@ -85,7 +91,7 @@ final class ActorFiber[T](
   private def tell[R](msg: R)(put: R => Unit): Unit =
     (procState.get(): @switch) match {
       case Stop =>
-        reporter.reportFailure(Undelivered(msg))
+        reporter.reportFailure(Undelivered(msg), token)
       case Running =>
         put(msg)
       case Idle =>
@@ -160,7 +166,7 @@ final class ActorFiber[T](
                   reportStop(
                     StopReason.Failure(exc)
                   )
-                  reporter.reportFailure(exc)
+                  reporter.reportFailure(exc, token)
                   behavior = Behavior.Stop
               }
             case _ => ()

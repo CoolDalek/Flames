@@ -1,4 +1,4 @@
-package flames.concurrent
+package flames.concurrent.execution
 
 import flames.logging.Logger
 
@@ -31,21 +31,19 @@ trait Scheduler extends ExecutionContext with Shutdown { self =>
 
   def schedule[T](delay: FiniteDuration, period: FiniteDuration)(action: => T): Cancellable
 
+  def config: SchedulerConfig
+
 }
 object Scheduler {
-  val availableProcessors: Int = sys.runtime.availableProcessors
-  val defaultKeepAlive: FiniteDuration = 60.seconds
 
-  def default(
-               logger: Logger,
-               minBlockingThreads: Int = 0,
-               maxBlockingThreads: Int = Int.MaxValue,
-               minComputeThreads: Int = availableProcessors,
-               maxComputeThreads: Int = availableProcessors,
-               timerThreads: Int = 1,
-               keepAlive: FiniteDuration = defaultKeepAlive,
-               interruptOnCancel: Boolean = false,
-             ): Scheduler = new Scheduler {
+  private class Default(
+                         logger: Logger,
+                         val config: SchedulerConfig,
+                       ) extends Scheduler {
+    import config.*
+
+    override def reportFailure(exc: Throwable): Unit =
+      logger.error(exc,"Unexpected exception in scheduler, most likely on CPU-bound thread.")
 
     private def factory(poolName: String, priority: Int = Thread.NORM_PRIORITY): DefaultThreadFactory =
       DefaultThreadFactory(poolName, logger, priority)
@@ -86,7 +84,7 @@ object Scheduler {
     override def blocking(action: Runnable): Unit =
       blocker.execute(action)
 
-    private def cancellable(scheduled: ScheduledFuture[_]): Cancellable =
+    private def cancellable(scheduled: ScheduledFuture[?]): Cancellable =
       new Cancellable {
         override def isCancelled: Boolean = scheduled.isCancelled
 
@@ -123,9 +121,12 @@ object Scheduler {
     override def execute(runnable: Runnable): Unit =
       compute.execute(runnable)
 
-    override def reportFailure(cause: Throwable): Unit =
-      logger.error(cause)
-
   }
+
+  def default(
+               logger: Logger,
+               config: SchedulerConfig = SchedulerConfig.default,
+             ): Scheduler =
+    new Default(logger, config)
 
 }

@@ -1,4 +1,4 @@
-package flames.concurrent
+package flames.concurrent.execution
 
 import flames.concurrent.actor.*
 

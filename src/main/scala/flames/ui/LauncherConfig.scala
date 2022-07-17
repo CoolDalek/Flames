@@ -1,6 +1,6 @@
 package flames.ui
 
-import flames.util.FailureReporter
+import flames.logging.FailureReporter
 
 case class LauncherConfig(
                            title: String,
