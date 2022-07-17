@@ -14,7 +14,7 @@ import scala.annotation.threadUnsafe
 trait Actor[T, Execution <: ExecutionModel](using ActorEnv, ValueOf[Execution]) {
 
   protected val runtime: ActorRuntime = ActorEnv.runtime
-  
+
   protected def name: String = getClass.getSimpleName
 
   @threadUnsafe
@@ -57,8 +57,8 @@ trait Actor[T, Execution <: ExecutionModel](using ActorEnv, ValueOf[Execution]) 
     override def stop(): Unit =
       fiber.stop(false)
 
-    override def token: ActorToken =
-      fiber.token
+    override def path: ActorPath[T] =
+      fiber.path
 
   }
 

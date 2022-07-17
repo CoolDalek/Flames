@@ -2,7 +2,7 @@ package flames.concurrent.actor.fiber
 
 import flames.concurrent.execution.*
 import flames.concurrent.actor.mailbox.{Mailbox, SystemMessage}
-import flames.concurrent.actor.{ActorParent, ActorRef, ActorToken}
+import flames.concurrent.actor.{ActorParent, ActorRef, ActorPath}
 import flames.util.Nullable.*
 import org.jctools.queues.MpscLinkedQueue
 import org.jctools.queues.atomic.{MpscUnboundedAtomicArrayQueue, SpscUnboundedAtomicArrayQueue}
@@ -12,7 +12,7 @@ import scala.collection.mutable
 trait FiberState[T](
                      val config: FiberConfig,
                      val parent: ActorParent,
-                     val token: ActorToken,
+                     val path: ActorPath[T],
                    ) extends HasChilds {
 
   def systemMail: Mailbox[SystemMessage]
@@ -51,7 +51,7 @@ object FiberState {
                             timerThreadsCount: Int,
                             config: FiberConfig,
                             parent: ActorParent,
-                            token: ActorToken,
+                            token: ActorPath[T],
                           ) extends FiberState[T](config, parent, token) with HasChilds.Sync {
     import config.*
 
@@ -105,7 +105,7 @@ object FiberState {
                   timerThreadsCount: Int,
                   config: FiberConfig,
                   parent: ActorParent,
-                  token: ActorToken,
+                  token: ActorPath[T],
                 ): FiberState[T] =
     new Default(timerThreadsCount, config, parent, token)
 

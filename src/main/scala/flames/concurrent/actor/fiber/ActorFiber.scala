@@ -24,7 +24,7 @@ final class ActorFiber[T](
                            executionFactory: ExecutionStrategy.Factory,
                          ) extends Runnable {
   import state.procState
-  export state.token
+  export state.path
 
   private val execution = executionFactory(executionLoop _)
 
@@ -34,10 +34,10 @@ final class ActorFiber[T](
   }
 
   def addChild(actor: ActorRef[Nothing]): Unit =
-    state.addChild(actor.token, actor)
+    state.addChild(actor.path, actor)
 
-  def removeChild(token: ActorToken): Option[ActorRef[Nothing]] =
-    state.removeChild(token)
+  def removeChild(path: ActorPath[Nothing]): Option[ActorRef[Nothing]] =
+    state.removeChild(path)
 
   def getChilds: Set[ActorRef[Nothing]] =
     state.getChilds
@@ -48,12 +48,12 @@ final class ActorFiber[T](
   private def reportStop(reason: StopReason): Unit =
     import state.parent
     if(parent == ActorParent.root) {
-      runtime.removeRootChild(token)
+      runtime.removeRootChild(path)
     } else {
       val nn = parent.asInstanceOf[ActorRef[Nothing]]
       nn.systemTell(
         SystemMessage.ChildStopped(
-          token,
+          path,
           null,
           reason,
         )
@@ -91,7 +91,7 @@ final class ActorFiber[T](
   private def tell[R](msg: R)(put: R => Unit): Unit =
     (procState.get(): @switch) match {
       case Stop =>
-        reporter.reportFailure(Undelivered(msg), token)
+        reporter.reportFailure(Undelivered(msg), path)
       case Running =>
         put(msg)
       case Idle =>
@@ -166,7 +166,7 @@ final class ActorFiber[T](
                   reportStop(
                     StopReason.Failure(exc)
                   )
-                  reporter.reportFailure(exc, token)
+                  reporter.reportFailure(exc, path)
                   behavior = Behavior.Stop
               }
             case _ => ()

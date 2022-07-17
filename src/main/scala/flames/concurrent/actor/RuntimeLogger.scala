@@ -18,12 +18,12 @@ private[concurrent] final class RuntimeLogger(
 
   @threadUnsafe
   override lazy val fiber: ActorFiber[LogEvent] = {
-    val token = runtime.tokenFactory("logger", ActorParent.root)
+    val path = runtime.pathFactory("logger", ActorParent.root)
     val state = FiberState.default[LogEvent](
       runtime.config.timerThreads,
       runtime.fiberConfig,
       ActorParent.root,
-      token,
+      path,
     )
     val executionFactory = PinnedExecution[LogEvent](state)
     val fiber = ActorFiber[LogEvent](
@@ -34,7 +34,7 @@ private[concurrent] final class RuntimeLogger(
       executionFactory,
     )
     makeLoggerThread(fiber).start()
-    runtime.addRootChild(fiber.token, self)
+    runtime.addRootChild(fiber.path, self)
     fiber
   }
 

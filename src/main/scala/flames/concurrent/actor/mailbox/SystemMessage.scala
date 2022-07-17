@@ -10,7 +10,7 @@ sealed trait SystemMessage {
 object SystemMessage {
 
   class ChildStopped(
-                      private[actor] val childToken: ActorToken,
+                      private[actor] val childToken: ActorPath[Nothing],
                       private[actor] var childRef: ActorRef[Nothing] | Null,
                       val reason: StopReason,
                     ) extends SystemMessage {

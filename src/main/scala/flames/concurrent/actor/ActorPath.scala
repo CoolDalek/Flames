@@ -5,25 +5,13 @@ import flames.util.Show
 
 import java.util.concurrent.atomic.AtomicLong
 
-opaque type ActorToken = String
-object ActorToken {
-  
-  extension (self: ActorToken) {
-    
-    inline private[actor] def parts: Array[String] = self.split("/")
-    
-  }
-  
-  extension (self: String) {
-    
-    inline private[actor] def concatToken(other: String): ActorToken = s"$self/$other"
-    
-  }
+opaque type ActorPath[-T] = String
+object ActorPath {
 
   final class Factory(uniquenessProvider: () => String) {
 
-    def apply(name: String, parent: ActorParent): ActorToken = {
-      val prefix = if(parent eq null) "root" else parent.asInstanceOf[ActorRef[Nothing]].token
+    def apply[T](name: String, parent: ActorParent): ActorPath[T] = {
+      val prefix = if(parent eq null) "root" else parent.asInstanceOf[ActorRef[Nothing]].path
       val escaped = name.replaceAll("/", "_slash_")
       val postfix = uniquenessProvider()
       s"$prefix/$escaped-$postfix"
@@ -44,6 +32,6 @@ object ActorToken {
 
   inline def default: Factory = uuidFactory
 
-  inline given Show[ActorToken] = Show.unsafe.instance
-  
+  inline given [T]: Show[ActorPath[T]] = Show.unsafe.instance
+
 }

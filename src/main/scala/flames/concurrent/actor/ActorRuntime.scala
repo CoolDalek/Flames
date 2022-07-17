@@ -28,20 +28,20 @@ trait ActorRuntime extends ActorScheduler {
 
   def rootChilds: Set[ActorRef[Nothing]]
 
-  private[actor] def addRootChild(token: ActorToken, ref: ActorRef[Nothing]): Unit
+  private[actor] def addRootChild[T](path: ActorPath[T], ref: ActorRef[Nothing]): Unit
 
-  private[actor] def removeRootChild(token: ActorToken): Option[ActorRef[Nothing]]
+  private[actor] def removeRootChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]]
 
-  private[actor] def getRootChild(token: ActorToken): Option[ActorRef[Nothing]]
+  private[actor] def getRootChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]]
 
   def spawn[Message, Model <: ExecutionModel](actor: Actor[Message, Model]): ActorRef[Message] = {
     actor.fiber // trigger initialization
     val ref = actor.self
-    addRootChild(ref.token, ref)
+    addRootChild(ref.path, ref)
     ref
   }
 
-  def tokenFactory: ActorToken.Factory
+  def pathFactory: ActorPath.Factory
 
   private[actor] def makeBlocking[T](name: String, behavior: Behavior[T], parent: ActorParent): ActorFiber[T]
 
@@ -79,14 +79,14 @@ object ActorRuntime {
 
     override def rootChilds: Set[ActorRef[Nothing]] = getChilds
 
-    override private[actor] def addRootChild(token: ActorToken, ref: ActorRef[Nothing]): Unit =
-      addChild(token, ref)
+    override private[actor] def addRootChild[T](path: ActorPath[T], ref: ActorRef[Nothing]): Unit =
+      addChild(path, ref)
 
-    override private[actor] def removeRootChild(token: ActorToken): Option[ActorRef[Nothing]] =
-      removeChild(token)
+    override private[actor] def removeRootChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]] =
+      removeChild(path)
 
-    override private[actor] def getRootChild(token: ActorToken): Option[ActorRef[Nothing]] =
-      getChild(token)
+    override private[actor] def getRootChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]] =
+      getChild(path)
 
   }
 
@@ -94,7 +94,7 @@ object ActorRuntime {
                                val logger: Logger,
                                val fiberConfig: FiberConfig,
                                val scheduler: Scheduler,
-                               val tokenFactory: ActorToken.Factory,
+                               val pathFactory: ActorPath.Factory,
                                blockingFactory: FiberFactory,
                                pinnedFactory: FiberFactory,
                                asyncFactory: FiberFactory,
@@ -131,7 +131,7 @@ object ActorRuntime {
              logger: Logger,
              fiberConfig: FiberConfig,
              scheduler: Scheduler,
-             tokenFactory: ActorToken.Factory,
+             pathFactory: ActorPath.Factory,
              blockingFactory: FiberFactory,
              pinnedFactory: FiberFactory,
              asyncFactory: FiberFactory,
@@ -140,7 +140,7 @@ object ActorRuntime {
       logger = logger,
       fiberConfig = fiberConfig,
       scheduler = scheduler,
-      tokenFactory = tokenFactory,
+      pathFactory = pathFactory,
       blockingFactory = blockingFactory,
       pinnedFactory = pinnedFactory,
       asyncFactory = asyncFactory,
@@ -150,7 +150,7 @@ object ActorRuntime {
                          logLevel: LogLevel,
                          timestampPattern: String,
                          printer: Printer[Id],
-                         val tokenFactory: ActorToken.Factory,
+                         val pathFactory: ActorPath.Factory,
                          schedulerConfig: SchedulerConfig,
                          val fiberConfig: FiberConfig,
                        ) extends ActorRuntime with RootHasChilds {
@@ -167,12 +167,12 @@ object ActorRuntime {
                                      behavior: Behavior[T],
                                      parent: ActorParent,
                                    ): ActorFiber[T] =
-      val token = tokenFactory(name, parent)
+      val path = pathFactory[T](name, parent)
       val state = FiberState.default[T](
         config.timerThreads,
         fiberConfig,
         parent,
-        token,
+        path,
       )
       val execution = executionFactory(state)
       ActorFiber[T](
@@ -226,7 +226,7 @@ object ActorRuntime {
                logLevel: LogLevel,
                timestampPattern: String = ActorLogger.defaultTimestampPattern,
                printer: Printer[Id] = ActorLogger.defaultPrinter,
-               tokenFactory: ActorToken.Factory = ActorToken.default,
+               pathFactory: ActorPath.Factory = ActorPath.default,
                schedulerConfig: SchedulerConfig = SchedulerConfig.default,
                fiberConfig: FiberConfig = FiberConfig.default,
              ): ActorRuntime =
@@ -234,7 +234,7 @@ object ActorRuntime {
       logLevel = logLevel,
       timestampPattern = timestampPattern,
       printer = printer,
-      tokenFactory = tokenFactory,
+      pathFactory = pathFactory,
       schedulerConfig = schedulerConfig,
       fiberConfig = fiberConfig,
     )
