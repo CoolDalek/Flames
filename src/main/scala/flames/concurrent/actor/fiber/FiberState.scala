@@ -2,10 +2,10 @@ package flames.concurrent.actor.fiber
 
 import flames.concurrent.execution.*
 import flames.concurrent.actor.mailbox.{Mailbox, SystemMessage}
-import flames.concurrent.actor.{ActorParent, ActorRef, ActorPath}
+import flames.concurrent.actor.{ActorParent, ActorPath, ActorRef}
 import flames.util.Nullable.*
-import org.jctools.queues.MpscLinkedQueue
-import org.jctools.queues.atomic.{MpscUnboundedAtomicArrayQueue, SpscUnboundedAtomicArrayQueue}
+import org.jctools.queues.*
+import org.jctools.queues.atomic.*
 
 import scala.collection.mutable
 
@@ -58,15 +58,21 @@ object FiberState {
     //Single consumer because only 1 thread can read this at a time,
     // and every thread change synchronized on execution context.
     // At least, I hope this is fine...
-    private val userQueue = new MpscUnboundedAtomicArrayQueue[T](userChunkSize)
+
+    //This ^ wasn't fine. Fixed, but introduced significant regression.
+    // Currently trying to find a way to synchronize queue reads only on context switches.
+    private val userQueue: MessagePassingQueue[T] =
+      new MpmcAtomicArrayQueue[T](userQueueSize)
     
-    private val timerQueue = if(timerThreadsCount > 1) {
-      new MpscUnboundedAtomicArrayQueue[T](timerChunkSize)
-    } else {
-      new SpscUnboundedAtomicArrayQueue[T](timerChunkSize)
-    }
+    private val timerQueue: MessagePassingQueue[T] =
+      if(timerThreadsCount > 1) {
+        new MpmcAtomicArrayQueue[T](timerQueueSize)
+      } else {
+        new SpmcAtomicArrayQueue[T](timerQueueSize)
+      }
     // There is no common system event bus, so messages can be passed from different threads simultaneously
-    private val systemQueue = new MpscUnboundedAtomicArrayQueue[SystemMessage](systemChunkSize)
+    private val systemQueue: MessagePassingQueue[SystemMessage] =
+      new MpmcAtomicArrayQueue[SystemMessage](systemQueueSize)
 
     override val systemMail: Mailbox[SystemMessage] = new Mailbox[SystemMessage] {
 
@@ -89,13 +95,13 @@ object FiberState {
     }
 
     override def systemPut(msg: SystemMessage): Unit =
-      systemQueue.add(msg)
+      systemQueue.offer(msg)
 
     override def timerPut(msg: T): Unit =
-      timerQueue.add(msg)
+      timerQueue.offer(msg)
 
     override def put(msg: T): Unit =
-      userQueue.add(msg)
+      userQueue.offer(msg)
 
     override val procState: AtomicProcessState = AtomicProcessState(ProcessState.Idle)
     
