@@ -2,15 +2,17 @@ package flames.concurrent.actor.fiber
 
 import flames.concurrent.execution.ProcessState.*
 import ExecutionStrategy.*
+import PinnedExecution.*
 
 class PinnedExecution[T](
+                          runner: Runner,
                           continuation: Continuation,
                           state: FiberState[T],
                         ) extends ExecutionStrategy {
   import state.procState
 
   override def run(): Unit =
-    continuation.run()
+    runner(continuation)
 
   override def sleep(): Unit = {
     procState.set(Idle)
@@ -31,8 +33,9 @@ class PinnedExecution[T](
 
 }
 object PinnedExecution {
+  type Runner = Runnable => Unit
   
-  def apply[T](state: FiberState[T]): Factory =
-    cont => new PinnedExecution[T](cont, state)
+  def apply[T](runner: Runner, state: FiberState[T]): Factory =
+    cont => new PinnedExecution[T](runner, cont, state)
   
 }

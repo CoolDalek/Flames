@@ -19,26 +19,15 @@ trait Actor[T, Execution <: ExecutionModel](using ActorEnv, ValueOf[Execution]) 
 
   @threadUnsafe
   private[actor] lazy val fiber: ActorFiber[T] =
-    valueOf[Execution] match {
-      case Blocking =>
-        runtime.makeBlocking[T](
-          name,
-          act(),
-          ActorEnv.parent
-        )
-      case Pinned =>
-        runtime.makePinned[T](
-          name,
-          act(),
-          ActorEnv.parent
-        )
-      case Async =>
-        runtime.makeAsync[T](
-          name,
-          act(),
-          ActorEnv.parent
-        )
-    }
+    runtime.fiberFactory(
+      name,
+      act(),
+      ActorEnv.parent,
+      runtime,
+      valueOf[Execution],
+    )
+  
+  private[actor] def run(): Unit = fiber.run()
 
   protected[actor] final val self: ActorRef[T] = new ActorRef[T] {
 
@@ -68,6 +57,7 @@ trait Actor[T, Execution <: ExecutionModel](using ActorEnv, ValueOf[Execution]) 
 
   protected final def spawn[R](factory: ActorFactory[R])(using StateAccess): ActorRef[R] = {
     val child = factory(using ActorEnv.withParent(self))
+    child.run()
     val ref = child.self
     fiber.addChild(ref)
     ref

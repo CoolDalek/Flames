@@ -11,4 +11,6 @@ trait ActorScheduler extends Scheduler with FailureReporter {
   
   def scheduleMessage[T](delay: FiniteDuration, period: FiniteDuration, to: ActorRef[T], message: T): Cancellable
 
+  override def config: ActorsConfig
+
 }

@@ -3,6 +3,7 @@ package flames.concurrent.actor
 import flames.concurrent.*
 import flames.concurrent.actor.fiber.*
 import flames.concurrent.actor.*
+import flames.concurrent.actor.mailbox.*
 import flames.concurrent.actor.behavior.Behavior
 import flames.concurrent.execution.*
 import flames.logging.*
@@ -16,13 +17,10 @@ import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
-import scala.language.postfixOps
 
 trait ActorRuntime extends ActorScheduler {
 
   protected given ActorRuntime = this
-
-  def fiberConfig: FiberConfig
 
   def logger: Logger
 
@@ -35,19 +33,17 @@ trait ActorRuntime extends ActorScheduler {
   private[actor] def getRootChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]]
 
   def spawn[Message, Model <: ExecutionModel](actor: Actor[Message, Model]): ActorRef[Message] = {
-    actor.fiber // trigger initialization
+    actor.run()
     val ref = actor.self
     addRootChild(ref.path, ref)
     ref
   }
 
-  def pathFactory: ActorPath.Factory
+  private[actor] def pathFactory: ActorPath.Factory
 
-  private[actor] def makeBlocking[T](name: String, behavior: Behavior[T], parent: ActorParent): ActorFiber[T]
+  private[actor] def fiberFactory: ActorFiber.Factory
 
-  private[actor] def makePinned[T](name: String, behavior: Behavior[T], parent: ActorParent): ActorFiber[T]
-
-  private[actor] def makeAsync[T](name: String, behavior: Behavior[T], parent: ActorParent): ActorFiber[T]
+  private[actor] def mailboxFactory: Mailbox.Factory
 
   override def scheduleMessage[T](delay: FiniteDuration, to: ActorRef[T], message: T): Cancellable =
     schedule(delay)(to.timerTell(message))
@@ -60,19 +56,6 @@ trait ActorRuntime extends ActorScheduler {
 
 }
 object ActorRuntime {
-
-  // Same as [T] =>> ((String, Behavior[T], ActorParent, ActorRuntime) => ActorFiber[T])
-  // But for some reason lambda requires to set type parameter when passed
-  trait FiberFactory {
-
-    def apply[T](
-                  name: String,
-                  behavior:Behavior[T],
-                  parent: ActorParent,
-                  runtime: ActorRuntime,
-                ): ActorFiber[T]
-
-  }
 
   trait RootHasChilds extends HasChilds.Async {
     this: ActorRuntime =>
@@ -90,135 +73,52 @@ object ActorRuntime {
 
   }
 
-  private class SimpleRuntime(
-                               val logger: Logger,
-                               val fiberConfig: FiberConfig,
-                               val scheduler: Scheduler,
-                               val pathFactory: ActorPath.Factory,
-                               blockingFactory: FiberFactory,
-                               pinnedFactory: FiberFactory,
-                               asyncFactory: FiberFactory,
-                             ) extends ActorRuntime with RootHasChilds {
-    export scheduler.*
-
-    override private[actor] def makeBlocking[T](name: String, behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
-      blockingFactory[T](
-        name,
-        behavior,
-        parent,
-        this,
-      )
-
-    override private[actor] def makePinned[T](name: String, behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
-      pinnedFactory[T](
-        name,
-        behavior,
-        parent,
-        this,
-      )
-
-    override private[actor] def makeAsync[T](name: String, behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
-      asyncFactory[T](
-        name,
-        behavior,
-        parent,
-        this,
-      )
+  private class Simple(
+                        val logger: Logger,
+                        val scheduler: Scheduler,
+                        val config: ActorsConfig,
+                        val pathFactory: ActorPath.Factory,
+                        val mailboxFactory: Mailbox.Factory,
+                        val fiberFactory: ActorFiber.Factory,
+                      ) extends ActorRuntime with RootHasChilds {
+    export scheduler.{config as _, *}
 
   }
 
   def apply(
              logger: Logger,
-             fiberConfig: FiberConfig,
              scheduler: Scheduler,
+             config: ActorsConfig,
              pathFactory: ActorPath.Factory,
-             blockingFactory: FiberFactory,
-             pinnedFactory: FiberFactory,
-             asyncFactory: FiberFactory,
+             mailboxFactory: Mailbox.Factory,
+             fiberFactory: ActorFiber.Factory,
            ): ActorRuntime =
-    new SimpleRuntime(
+    new Simple(
       logger = logger,
-      fiberConfig = fiberConfig,
       scheduler = scheduler,
+      config = config,
       pathFactory = pathFactory,
-      blockingFactory = blockingFactory,
-      pinnedFactory = pinnedFactory,
-      asyncFactory = asyncFactory,
+      mailboxFactory = mailboxFactory,
+      fiberFactory = fiberFactory,
     )
 
   private class Default(
                          logLevel: LogLevel,
                          timestampPattern: String,
                          printer: Printer[Id],
+                         val config: ActorsConfig,
                          val pathFactory: ActorPath.Factory,
-                         schedulerConfig: SchedulerConfig,
-                         val fiberConfig: FiberConfig,
+                         val mailboxFactory: Mailbox.Factory,
+                         val fiberFactory: ActorFiber.Factory,
                        ) extends ActorRuntime with RootHasChilds {
 
-    val logger: Logger = RuntimeLogger(logLevel, timestampPattern, printer)
+    val logger: RuntimeLogger = RuntimeLogger(logLevel, timestampPattern, printer)
 
-    val scheduler: Scheduler = Scheduler.default(logger, schedulerConfig)
+    logger.run()
 
-    export scheduler.*
+    val scheduler: Scheduler = Scheduler.default(logger, config)
 
-    inline private def makeFiber[T](
-                                     inline executionFactory: FiberState[T] => ExecutionStrategy.Factory,
-                                     name: String,
-                                     behavior: Behavior[T],
-                                     parent: ActorParent,
-                                   ): ActorFiber[T] =
-      val path = pathFactory[T](name, parent)
-      val state = FiberState.default[T](
-        config.timerThreads,
-        fiberConfig,
-        parent,
-        path,
-      )
-      val execution = executionFactory(state)
-      ActorFiber[T](
-        state,
-        behavior,
-        this,
-        this,
-        execution,
-      )
-    end makeFiber
-
-    inline private def makeShifted[T](
-                                       ec: ExecutionContext,
-                                       name: String,
-                                       behavior: Behavior[T],
-                                       parent: ActorParent,
-                                     ): ActorFiber[T] =
-      val fiber = makeFiber[T](
-        state => ShiftedExecution[T](
-          ec,
-          state,
-        ),
-        name,
-        behavior,
-        parent,
-      )
-      fiber.run()
-      fiber
-    end makeShifted
-
-    override def makeBlocking[T](name: String, behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
-      makeShifted[T](blockingEC, name, behavior, parent)
-
-    override def makeAsync[T](name: String, behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
-      makeShifted[T](this, name, behavior, parent)
-
-    override def makePinned[T](name: String, behavior: Behavior[T], parent: ActorParent): ActorFiber[T] =
-      val fiber = makeFiber[T](
-        PinnedExecution.apply[T],
-        name,
-        behavior,
-        parent,
-      )
-      blocking(fiber)
-      fiber
-    end makePinned
+    export scheduler.{config as _, *}
     
   }
 
@@ -226,17 +126,19 @@ object ActorRuntime {
                logLevel: LogLevel,
                timestampPattern: String = ActorLogger.defaultTimestampPattern,
                printer: Printer[Id] = ActorLogger.defaultPrinter,
-               pathFactory: ActorPath.Factory = ActorPath.default,
-               schedulerConfig: SchedulerConfig = SchedulerConfig.default,
-               fiberConfig: FiberConfig = FiberConfig.default,
+               config: ActorsConfig = ActorsConfig.default,
+               pathFactory: ActorPath.Factory = ActorPath.defaultFactory,
+               mailboxFactory: Mailbox.Factory = Mailbox.defaultFactory,
+               fiberFactory: ActorFiber.Factory = ActorFiber.defaultFactory,
              ): ActorRuntime =
     new Default(
       logLevel = logLevel,
       timestampPattern = timestampPattern,
       printer = printer,
+      config = config,
       pathFactory = pathFactory,
-      schedulerConfig = schedulerConfig,
-      fiberConfig = fiberConfig,
+      mailboxFactory = mailboxFactory,
+      fiberFactory = fiberFactory,
     )
 
 

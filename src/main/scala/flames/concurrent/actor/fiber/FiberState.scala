@@ -1,23 +1,26 @@
 package flames.concurrent.actor.fiber
 
 import flames.concurrent.execution.*
+import flames.concurrent.execution.ExecutionModel.*
 import flames.concurrent.actor.mailbox.{Mailbox, SystemMessage}
-import flames.concurrent.actor.{ActorParent, ActorPath, ActorRef}
+import flames.concurrent.actor.*
 import flames.util.Nullable.*
 import org.jctools.queues.*
 import org.jctools.queues.atomic.*
 
 import scala.collection.mutable
+import scala.concurrent.duration.FiniteDuration
 
 trait FiberState[T](
-                     val config: FiberConfig,
+                     val autoYieldCount: Int,
+                     val autoYieldTime: Option[FiniteDuration],
                      val parent: ActorParent,
                      val path: ActorPath[T],
                    ) extends HasChilds {
 
   def systemMail: Mailbox[SystemMessage]
 
-  def userMail: Mailbox[T]
+  def userMail: Mailbox.Biased[T]
 
   def systemPut(msg: SystemMessage): Unit
 
@@ -34,8 +37,8 @@ trait FiberState[T](
   var loop: Boolean = false
 
   def prepare(): Unit = {
-    yieldCount = config.autoYieldCount
-    deadline = config.autoYieldTime match {
+    yieldCount = autoYieldCount
+    deadline = autoYieldTime match {
       case Some(value) =>
         System.nanoTime() + value.toNanos
       case None =>
@@ -48,71 +51,44 @@ trait FiberState[T](
 object FiberState {
   
   private class Default[T](
-                            timerThreadsCount: Int,
-                            config: FiberConfig,
+                            autoYieldCount: Int,
+                            autoYieldTime: Option[FiniteDuration],
+                            userQueue: Mailbox.Consuming[T],
+                            timerQueue: Mailbox.Consuming[T],
+                            val systemMail: Mailbox.Consuming[SystemMessage],
+                            val userMail: Mailbox.Biased[T],
                             parent: ActorParent,
-                            token: ActorPath[T],
-                          ) extends FiberState[T](config, parent, token) with HasChilds.Sync {
-    import config.*
-
-    //Single consumer because only 1 thread can read this at a time,
-    // and every thread change synchronized on execution context.
-    // At least, I hope this is fine...
-
-    //This ^ wasn't fine. Fixed, but introduced significant regression.
-    // Currently trying to find a way to synchronize queue reads only on context switches.
-    private val userQueue: MessagePassingQueue[T] =
-      new MpmcAtomicArrayQueue[T](userQueueSize)
-    
-    private val timerQueue: MessagePassingQueue[T] =
-      if(timerThreadsCount > 1) {
-        new MpmcAtomicArrayQueue[T](timerQueueSize)
-      } else {
-        new SpmcAtomicArrayQueue[T](timerQueueSize)
-      }
-    // There is no common system event bus, so messages can be passed from different threads simultaneously
-    private val systemQueue: MessagePassingQueue[SystemMessage] =
-      new MpmcAtomicArrayQueue[SystemMessage](systemQueueSize)
-
-    override val systemMail: Mailbox[SystemMessage] = new Mailbox[SystemMessage] {
-
-      override def isEmpty: Boolean = systemQueue.isEmpty
-
-      override def poll(): SystemMessage | Null = systemQueue.poll()
-
-    }
-
-    override val userMail: Mailbox[T] = new Mailbox[T] {
-
-      override def isEmpty: Boolean = userQueue.isEmpty && timerQueue.isEmpty
-
-      override def poll(): T | Null =
-        timerQueue.poll()
-          .orElse {
-            userQueue.poll()
-          }
-
-    }
+                            path: ActorPath[T],
+                          ) extends FiberState[T](autoYieldCount, autoYieldTime, parent, path) with HasChilds.Sync {
 
     override def systemPut(msg: SystemMessage): Unit =
-      systemQueue.offer(msg)
+      systemMail.put(msg)
 
     override def timerPut(msg: T): Unit =
-      timerQueue.offer(msg)
+      timerQueue.put(msg)
 
     override def put(msg: T): Unit =
-      userQueue.offer(msg)
+      userQueue.put(msg)
 
     override val procState: AtomicProcessState = AtomicProcessState(ProcessState.Idle)
     
   }
 
   def default[T](
-                  timerThreadsCount: Int,
-                  config: FiberConfig,
+                  post: Mailbox.Post[T],
+                  config: ActorsConfig,
                   parent: ActorParent,
-                  token: ActorPath[T],
+                  path: ActorPath[T],
                 ): FiberState[T] =
-    new Default(timerThreadsCount, config, parent, token)
+    new Default(
+      autoYieldCount = config.autoYieldCount,
+      autoYieldTime = config.autoYieldTime,
+      userQueue = post.userQueue,
+      timerQueue = post.timerQueue,
+      systemMail = post.systemMail,
+      userMail = post.userMail,
+      parent = parent,
+      path = path,
+    )
 
 }

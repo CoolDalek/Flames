@@ -16,6 +16,8 @@ import flames.concurrent.actor.behavior.BehaviorTag.*
 import flames.logging.FailureReporter
 import ActorFiber.*
 
+import scala.concurrent.ExecutionContext
+
 final class ActorFiber[T](
                            private val state: FiberState[T],
                            private var behavior: Behavior[T],
@@ -102,14 +104,17 @@ final class ActorFiber[T](
   protected final def executionLoop(): Unit =
     import state.*
     prepare()
+    userMail.acquire()
     while (loop) {
       if (yieldCount > 0 && System.nanoTime() < deadline) {
         processSystem {
           processUser {
+            userMail.release()
             execution.sleep()
           }
         }
       } else {
+        userMail.release()
         execution.`yield`()
       }
     }
@@ -193,6 +198,55 @@ final class ActorFiber[T](
 
 }
 object ActorFiber {
+
+  trait Factory {
+
+    def apply[T](
+                  name: String,
+                  behavior:Behavior[T],
+                  parent: ActorParent,
+                  runtime: ActorRuntime,
+                  model: ExecutionModel,
+                ): ActorFiber[T]
+
+  }
+
+  val defaultFactory: Factory = new Factory {
+
+    override def apply[T](
+                           name: String,
+                           behavior: Behavior[T],
+                           parent: ActorParent,
+                           runtime: ActorRuntime,
+                           model: ExecutionModel,
+                         ): ActorFiber[T] =
+      val path = runtime.pathFactory[T](name, parent)
+      val post = runtime.mailboxFactory[T](model, runtime.config)
+      val state = FiberState.default[T](
+        post,
+        runtime.config,
+        parent,
+        path,
+      )
+      val execution = model match {
+        case ExecutionModel.Async =>
+          ShiftedExecution[T](runtime, state)
+        case ExecutionModel.Blocking =>
+          ShiftedExecution[T](runtime.blockingEC, state)
+        case ExecutionModel.Pinned =>
+          PinnedExecution[T](runtime.blocking, state)
+      }
+      new ActorFiber[T](
+        state = state,
+        behavior = behavior,
+        reporter = runtime,
+        runtime = runtime,
+        executionFactory = execution,
+      )
+    end apply
+
+  }
+
   type ProcessResult = EmptyQueue | Continue | Break
   type EmptyQueue = 1
   inline val EmptyQueue: EmptyQueue = 1

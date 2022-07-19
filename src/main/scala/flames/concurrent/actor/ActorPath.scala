@@ -30,7 +30,7 @@ object ActorPath {
   def timestampFactory: Factory =
     new Factory(System.nanoTime().toString)
 
-  inline def default: Factory = uuidFactory
+  inline def defaultFactory: Factory = uuidFactory
 
   inline given [T]: Show[ActorPath[T]] = Show.unsafe.instance
 
