@@ -16,9 +16,9 @@ trait FiberState[T](
                      val autoYieldTime: Option[FiniteDuration],
                      val parent: ActorParent,
                      val path: ActorPath[T],
-                   ) extends HasChilds {
+                   ) extends HasChilds with AcquireRelease {
 
-  def systemMail: Mailbox[SystemMessage]
+  def systemMail: Mailbox.Biased[SystemMessage]
 
   def userMail: Mailbox.Biased[T]
 
@@ -29,6 +29,16 @@ trait FiberState[T](
   def put(msg: T): Unit
 
   def hasMessage: Boolean = !(userMail.isEmpty && systemMail.isEmpty)
+  
+  override def acquire(): Unit = {
+    userMail.acquire()
+    systemMail.acquire()
+  }
+
+  override def release(): Unit = {
+    systemMail.release()
+    userMail.release()
+  }
 
   def procState: AtomicProcessState
 
@@ -55,7 +65,7 @@ object FiberState {
                             autoYieldTime: Option[FiniteDuration],
                             userQueue: Mailbox.Consuming[T],
                             timerQueue: Mailbox.Consuming[T],
-                            val systemMail: Mailbox.Consuming[SystemMessage],
+                            val systemMail: Mailbox.Biased[SystemMessage] with Mailbox.Consuming[SystemMessage],
                             val userMail: Mailbox.Biased[T],
                             parent: ActorParent,
                             path: ActorPath[T],
@@ -74,12 +84,12 @@ object FiberState {
     
   }
 
-  def default[T](
-                  post: Mailbox.Post[T],
-                  config: ActorsConfig,
-                  parent: ActorParent,
-                  path: ActorPath[T],
-                ): FiberState[T] =
+  def apply[T](
+                post: Mailbox.Post[T],
+                config: ActorsConfig,
+                parent: ActorParent,
+                path: ActorPath[T],
+              ): FiberState[T] =
     new Default(
       autoYieldCount = config.autoYieldCount,
       autoYieldTime = config.autoYieldTime,

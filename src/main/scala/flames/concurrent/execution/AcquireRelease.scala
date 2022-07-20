@@ -5,6 +5,13 @@ trait AcquireRelease {
   def acquire(): Unit
 
   def release(): Unit
+  
+  final def scoped[T](action: => T): T = {
+    acquire()
+    val result = action
+    release()
+    result
+  }
 
 }
 object AcquireRelease {

@@ -104,17 +104,17 @@ final class ActorFiber[T](
   protected final def executionLoop(): Unit =
     import state.*
     prepare()
-    userMail.acquire()
+    acquire()
     while (loop) {
       if (yieldCount > 0 && System.nanoTime() < deadline) {
         processSystem {
           processUser {
-            userMail.release()
+            release()
             execution.sleep()
           }
         }
       } else {
-        userMail.release()
+        release()
         execution.`yield`()
       }
     }
@@ -222,7 +222,7 @@ object ActorFiber {
                          ): ActorFiber[T] =
       val path = runtime.pathFactory[T](name, parent)
       val post = runtime.mailboxFactory[T](model, runtime.config)
-      val state = FiberState.default[T](
+      val state = FiberState[T](
         post,
         runtime.config,
         parent,

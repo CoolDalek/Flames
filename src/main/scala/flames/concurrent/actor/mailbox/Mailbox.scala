@@ -32,6 +32,16 @@ object Mailbox {
 
   }
 
+  trait System(system: Consuming[SystemMessage]) extends Consuming[SystemMessage] with Biased[SystemMessage] {
+    export system.*
+  }
+
+  def systemShifting(mail: Consuming[SystemMessage]): System =
+    new System(mail) with AcquireRelease.Volatile {}
+  
+  def systemPinned(mail: Consuming[SystemMessage]): System =
+    new System(mail) with AcquireRelease.Noop {}
+
   def protocolShifting[T](timer: Consuming[T], user: Consuming[T]): Biased[T] =
     new Protocol[T](timer, user) with AcquireRelease.Volatile {}
 
@@ -47,11 +57,11 @@ object Mailbox {
     override def poll(): T | Null = queue.poll()
     
   }
-  
+
   def mpsc[T](chunk: Int, max: Int): Consuming[T] = jctools(
     new MpscChunkedAtomicArrayQueue[T](chunk, max)
   )
-  
+
   def spsc[T](chunk: Int, max: Int): Consuming[T] = jctools(
     new SpscChunkedAtomicArrayQueue[T](chunk, max)
   )
@@ -59,7 +69,7 @@ object Mailbox {
   class Post[T](
                  val userQueue: Consuming[T],
                  val timerQueue: Consuming[T],
-                 val systemMail: Consuming[SystemMessage],
+                 val systemMail: Consuming[SystemMessage] with Biased[SystemMessage],
                  val userMail: Biased[T]
                )
 
@@ -70,7 +80,7 @@ object Mailbox {
   }
 
   val defaultFactory: Factory = new Factory {
-    
+
     override def apply[T](model: ExecutionModel, config: ActorsConfig): Post[T] = {
       val user = mpsc[T](
         config.queueInitSize,
@@ -87,20 +97,20 @@ object Mailbox {
         config.queueInitSize,
         config.queueMaxSize,
       )
-      val mail = model match {
+      val (userMail, systemMail) = model match {
         case ExecutionModel.Pinned =>
-          protocolPinned[T](timer, user)
+          protocolPinned[T](timer, user) -> systemPinned(system)
         case _ =>
-          protocolShifting[T](timer, user)
+          protocolShifting[T](timer, user) -> systemShifting(system)
       }
       new Post[T](
         userQueue = user,
         timerQueue = timer,
-        systemMail = system,
-        userMail = mail,
+        systemMail = systemMail,
+        userMail = userMail,
       )
     }
-    
+
   }
 
 }

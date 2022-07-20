@@ -20,7 +20,7 @@ private[concurrent] final class RuntimeLogger(
   override lazy val fiber: ActorFiber[LogEvent] = {
     val path = runtime.pathFactory[LogEvent]("logger", ActorParent.root)
     val post = runtime.mailboxFactory[LogEvent](ExecutionModel.Pinned, runtime.config)
-    val state = FiberState.default[LogEvent](
+    val state = FiberState[LogEvent](
       post,
       runtime.config,
       ActorParent.root,
