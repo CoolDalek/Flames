@@ -69,19 +69,6 @@ object BehaviorBuilder {
     override val tag: BuilderTag = IgnoreTag
   }
 
-  private inline def tryWith[Protocol, ReceiveType](
-                                                     inline handler: PartialFunction[Throwable, Behavior[Protocol]],
-                                                     inline act: ReceiveType => Behavior[Protocol],
-                                                   ): ReceiveType => Behavior[Protocol] =
-    (msg: ReceiveType) => try {
-      act(msg)
-    } catch {
-      case NonFatal(exc) =>
-        if(handler.isDefinedAt(exc)) handler(exc)
-        else throw exc
-    }
-  end tryWith
-
   private inline def build[T](
                                system: BehaviorBuilder[T, SystemMessage],
                                protocol: BehaviorBuilder[T, T],
@@ -101,10 +88,15 @@ object BehaviorBuilder {
         self.act.asInstanceOf[GenericAct[Protocol, ReceiveType]]
       case HandleFailureTag =>
         val self = builder.asInstanceOf[HandleFailure[Protocol, ReceiveType]]
-        tryWith(
-          self.handler,
-          self.receive.act,
-        ).asInstanceOf[GenericAct[Protocol, ReceiveType]]
+        val handler = self.handler
+        val act = self.receive.act
+        (msg: ReceiveType) => try {
+          act(msg)
+        } catch {
+          case NonFatal(exc) =>
+            if(handler.isDefinedAt(exc)) handler(exc)
+            else throw exc
+        }
       case IgnoreTag =>
         null
     }

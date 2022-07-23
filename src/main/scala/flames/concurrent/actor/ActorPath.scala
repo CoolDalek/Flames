@@ -32,6 +32,6 @@ object ActorPath {
 
   inline def defaultFactory: Factory = uuidFactory
 
-  inline given [T]: Show[ActorPath[T]] = Show.unsafe.instance
+  inline given [T]: Show[ActorPath[T]] = identity
 
 }

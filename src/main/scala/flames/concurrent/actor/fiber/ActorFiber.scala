@@ -179,6 +179,7 @@ final class ActorFiber[T](
           (behavior.tag: @switch) match {
             case StopTag =>
               procState.set(Stop)
+              reportStop(StopReason.Shutdown)
               Break
             case _ =>
               Continue
