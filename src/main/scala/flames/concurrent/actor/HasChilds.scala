@@ -1,4 +1,4 @@
-package flames.concurrent.actor.fiber
+package flames.concurrent.actor
 
 import flames.concurrent.actor.*
 
@@ -7,11 +7,11 @@ import scala.collection.mutable
 
 trait HasChilds {
 
-  def addChild[T](token: ActorPath[T], actor: ActorRef[Nothing]): Unit
+  def addChild[T](path: ActorPath[T], actor: ActorRef[T]): Unit
 
-  def removeChild[T](token: ActorPath[T]): Option[ActorRef[Nothing]]
+  def removeChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]]
 
-  def getChild[T](token: ActorPath[T]): Option[ActorRef[Nothing]]
+  def getChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]]
 
   def getChilds: Set[ActorRef[Nothing]]
 
@@ -22,17 +22,17 @@ object HasChilds {
 
     protected def childs: mutable.Map[ActorPath[Nothing], ActorRef[Nothing]]
 
-    override def addChild[T](token: ActorPath[T], actor: ActorRef[Nothing]): Unit =
-      childs.update(token, actor)
+    override def addChild[T](path: ActorPath[T], actor: ActorRef[T]): Unit =
+      childs.update(path, actor)
 
-    override def removeChild[T](token: ActorPath[T]): Option[ActorRef[Nothing]] =
-      childs.remove(token)
+    override def removeChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]] =
+      childs.remove(path)
 
     override def getChilds: Set[ActorRef[Nothing]] =
       childs.values to Set
 
-    override def getChild[T](token: ActorPath[T]): Option[ActorRef[Nothing]] =
-      childs.get(token)
+    override def getChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]] =
+      childs.get(path)
 
   }
 

@@ -24,9 +24,9 @@ final class ActorFiber[T](
                            private val reporter: FailureReporter,
                            private val runtime: ActorRuntime,
                            executionFactory: ExecutionStrategy.Factory,
-                         ) extends Runnable {
+                         ) extends Runnable with HasChilds {
   import state.procState
-  export state.path
+  export state.{path, addChild, removeChild, getChilds, getChild}
 
   private val execution = executionFactory(executionLoop _)
 
@@ -34,15 +34,6 @@ final class ActorFiber[T](
     procState.set(Running)
     execution.run()
   }
-
-  def addChild(actor: ActorRef[Nothing]): Unit =
-    state.addChild(actor.path, actor)
-
-  def removeChild(path: ActorPath[Nothing]): Option[ActorRef[Nothing]] =
-    state.removeChild(path)
-
-  def getChilds: Set[ActorRef[Nothing]] =
-    state.getChilds
 
   private def stopCleanup(): Unit =
     getChilds.foreach(_.silentStop())

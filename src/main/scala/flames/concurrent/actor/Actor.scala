@@ -11,7 +11,7 @@ import sourcecode.Enclosing
 import scala.compiletime.*
 import scala.annotation.threadUnsafe
 
-trait Actor[T, Execution <: ExecutionModel](using ActorEnv, ValueOf[Execution]) {
+trait Actor[T, Execution <: ExecutionModel](using ActorEnv, ValueOf[Execution]) extends Spawn.WithChilds {
 
   protected val runtime: ActorRuntime = ActorEnv.runtime
 
@@ -55,13 +55,10 @@ trait Actor[T, Execution <: ExecutionModel](using ActorEnv, ValueOf[Execution]) 
 
   protected final def childs(using StateAccess): Set[ActorRef[Nothing]] = fiber.getChilds
 
-  protected final def spawn[R](factory: ActorFactory[R])(using StateAccess): ActorRef[R] = {
-    val child = factory(using ActorEnv.withParent(self))
-    child.run()
-    val ref = child.self
-    fiber.addChild(ref)
-    ref
-  }
+  override protected val env: ActorEnv = ActorEnv.withParent(self)
+
+  override protected def registerChild[T](path: ActorPath[T], actor: ActorRef[T]): Unit =
+    fiber.addChild(path, actor)
 
   protected final type WithState[T] = StateAccess ?=> T
 

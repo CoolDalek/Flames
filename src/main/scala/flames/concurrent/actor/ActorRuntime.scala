@@ -18,7 +18,7 @@ import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
-trait ActorRuntime extends ActorScheduler {
+trait ActorRuntime extends ActorScheduler with Spawn {
 
   protected given ActorRuntime = this
 
@@ -26,18 +26,11 @@ trait ActorRuntime extends ActorScheduler {
 
   def rootChilds: Set[ActorRef[Nothing]]
 
-  private[actor] def addRootChild[T](path: ActorPath[T], ref: ActorRef[Nothing]): Unit
+  private[actor] def addRootChild[T](path: ActorPath[T], ref: ActorRef[T]): Unit
 
   private[actor] def removeRootChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]]
 
   private[actor] def getRootChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]]
-
-  def spawn[Message, Model <: ExecutionModel](actor: Actor[Message, Model]): ActorRef[Message] = {
-    actor.run()
-    val ref = actor.self
-    addRootChild(ref.path, ref)
-    ref
-  }
 
   private[actor] def pathFactory: ActorPath.Factory
 
@@ -57,12 +50,17 @@ trait ActorRuntime extends ActorScheduler {
 }
 object ActorRuntime {
 
-  trait RootHasChilds extends HasChilds.Async {
+  trait RootActor extends HasChilds.Async with Spawn.WithChilds {
     this: ActorRuntime =>
+
+    override protected val env: ActorEnv = (this, ActorParent.root)
 
     override def rootChilds: Set[ActorRef[Nothing]] = getChilds
 
-    override private[actor] def addRootChild[T](path: ActorPath[T], ref: ActorRef[Nothing]): Unit =
+    override private[actor] def addRootChild[T](path: ActorPath[T], ref: ActorRef[T]): Unit =
+      addChild(path, ref)
+
+    override protected def registerChild[T](path: ActorPath[T], ref: ActorRef[T]): Unit =
       addChild(path, ref)
 
     override private[actor] def removeRootChild[T](path: ActorPath[T]): Option[ActorRef[Nothing]] =
@@ -80,9 +78,8 @@ object ActorRuntime {
                         val pathFactory: ActorPath.Factory,
                         val mailboxFactory: Mailbox.Factory,
                         val fiberFactory: ActorFiber.Factory,
-                      ) extends ActorRuntime with RootHasChilds {
+                      ) extends ActorRuntime with RootActor {
     export scheduler.{config as _, *}
-
   }
 
   def apply(
@@ -110,9 +107,9 @@ object ActorRuntime {
                          val pathFactory: ActorPath.Factory,
                          val mailboxFactory: Mailbox.Factory,
                          val fiberFactory: ActorFiber.Factory,
-                       ) extends ActorRuntime with RootHasChilds {
+                       ) extends ActorRuntime with RootActor {
 
-    val logger: RuntimeLogger = RuntimeLogger(logLevel, timestampPattern, printer)
+    val logger: RuntimeLogger = RuntimeLogger(logLevel, timestampPattern, printer)(using env)
 
     logger.run()
 
