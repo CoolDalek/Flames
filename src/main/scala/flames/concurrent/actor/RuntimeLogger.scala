@@ -4,7 +4,7 @@ import flames.concurrent.actor.RuntimeLogger.*
 import flames.concurrent.actor.fiber.*
 import flames.logging.*
 import flames.util.{Id, Show}
-import flames.concurrent.execution.ExecutionModel
+import flames.concurrent.execution.{AcquireRelease, ExecutionModel}
 import sourcecode.{Enclosing, Line}
 
 import scala.annotation.threadUnsafe
@@ -25,6 +25,7 @@ private[concurrent] final class RuntimeLogger(
       runtime.config,
       ActorParent.root,
       path,
+      AcquireRelease.noop,
     )
     val executionFactory = PinnedExecution[LogEvent](
       runnable => makeLoggerThread(runnable).start(),

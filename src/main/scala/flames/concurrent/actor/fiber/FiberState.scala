@@ -18,9 +18,9 @@ trait FiberState[T](
                      val path: ActorPath[T],
                    ) extends HasChilds with AcquireRelease {
 
-  def systemMail: Mailbox.Biased[SystemMessage]
+  def systemMail: Mailbox[SystemMessage]
 
-  def userMail: Mailbox.Biased[T]
+  def userMail: Mailbox[T]
 
   def systemPut(msg: SystemMessage): Unit
 
@@ -29,16 +29,6 @@ trait FiberState[T](
   def put(msg: T): Unit
 
   def hasMessage: Boolean = !(userMail.isEmpty && systemMail.isEmpty)
-  
-  override def acquire(): Unit = {
-    userMail.acquire()
-    systemMail.acquire()
-  }
-
-  override def release(): Unit = {
-    systemMail.release()
-    userMail.release()
-  }
 
   def procState: AtomicProcessState
 
@@ -65,11 +55,13 @@ object FiberState {
                             autoYieldTime: Option[FiniteDuration],
                             userQueue: Mailbox.Consuming[T],
                             timerQueue: Mailbox.Consuming[T],
-                            val systemMail: Mailbox.Biased[SystemMessage] with Mailbox.Consuming[SystemMessage],
-                            val userMail: Mailbox.Biased[T],
+                            val systemMail: Mailbox.Consuming[SystemMessage],
+                            val userMail: Mailbox[T],
                             parent: ActorParent,
                             path: ActorPath[T],
+                            ar: AcquireRelease,
                           ) extends FiberState[T](autoYieldCount, autoYieldTime, parent, path) with HasChilds.Sync {
+    export ar.*
 
     override def systemPut(msg: SystemMessage): Unit =
       systemMail.put(msg)
@@ -85,10 +77,11 @@ object FiberState {
   }
 
   def apply[T](
-                post: Mailbox.Post[T],
+                post: Mailbox.PostOffice[T],
                 config: ActorsConfig,
                 parent: ActorParent,
                 path: ActorPath[T],
+                ar: AcquireRelease,
               ): FiberState[T] =
     new Default(
       autoYieldCount = config.autoYieldCount,
@@ -99,6 +92,7 @@ object FiberState {
       userMail = post.userMail,
       parent = parent,
       path = path,
+      ar = ar,
     )
 
 }

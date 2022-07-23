@@ -23,9 +23,11 @@ object AcquireRelease {
     override def release(): Unit = ()
 
   }
+  
+  val noop: AcquireRelease = new Noop {}
 
   trait Volatile extends AcquireRelease {
-    //Let's just hope that JIT will not optimize this
+    //Let's just hope that scalac and JIT will not optimize this
 
     @volatile
     private var dummy = true
@@ -41,5 +43,17 @@ object AcquireRelease {
       dummy = false
 
   }
+  
+  def volatile: AcquireRelease = new Volatile {}
+  
+  def lockFree(model: ExecutionModel): AcquireRelease =
+    model match {
+      case ExecutionModel.Pinned =>
+        noop
+      case _ =>
+        volatile
+    }
+  
+  type Factory = ExecutionModel => AcquireRelease
 
 }

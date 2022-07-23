@@ -15,38 +15,21 @@ trait Mailbox[+T] {
 }
 object Mailbox {
 
-  trait Biased[+T] extends Mailbox[T] with AcquireRelease
-
   trait Consuming[T] extends Mailbox[T] {
 
     def put(msg: T): Unit
 
   }
-
-  trait Protocol[+T](timer: Consuming[T], user: Consuming[T]) extends Biased[T] {
-
-    override def isEmpty: Boolean = user.isEmpty && timer.isEmpty
-
-    override def poll(): T | Null =
-      timer.poll().orElse(user.poll())
-
-  }
-
-  trait System(system: Consuming[SystemMessage]) extends Consuming[SystemMessage] with Biased[SystemMessage] {
-    export system.*
-  }
-
-  def systemShifting(mail: Consuming[SystemMessage]): System =
-    new System(mail) with AcquireRelease.Volatile {}
   
-  def systemPinned(mail: Consuming[SystemMessage]): System =
-    new System(mail) with AcquireRelease.Noop {}
+  def protocol[T](timer: Mailbox[T], user: Mailbox[T]): Mailbox[T] =
+    new Mailbox[T] {
+      
+      override def isEmpty: Boolean = user.isEmpty && timer.isEmpty
 
-  def protocolShifting[T](timer: Consuming[T], user: Consuming[T]): Biased[T] =
-    new Protocol[T](timer, user) with AcquireRelease.Volatile {}
-
-  def protocolPinned[T](timer: Consuming[T], user: Consuming[T]): Biased[T] =
-    new Protocol[T](timer, user) with AcquireRelease.Noop {}
+      override def poll(): T | Null =
+        timer.poll().orElse(user.poll())
+      
+    }
 
   def jctools[T](queue: MessagePassingQueue[T]): Consuming[T] = new Consuming[T] {
     
@@ -66,22 +49,22 @@ object Mailbox {
     new SpscChunkedAtomicArrayQueue[T](chunk, max)
   )
 
-  class Post[T](
-                 val userQueue: Consuming[T],
-                 val timerQueue: Consuming[T],
-                 val systemMail: Consuming[SystemMessage] with Biased[SystemMessage],
-                 val userMail: Biased[T]
-               )
+  class PostOffice[T](
+                       val userQueue: Consuming[T], 
+                       val timerQueue: Consuming[T], 
+                       val systemMail: Consuming[SystemMessage], 
+                       val userMail: Mailbox[T],
+                     )
 
   trait Factory {
 
-    def apply[T](model: ExecutionModel, config: ActorsConfig): Post[T]
+    def apply[T](model: ExecutionModel, config: ActorsConfig): PostOffice[T]
 
   }
 
   val defaultFactory: Factory = new Factory {
 
-    override def apply[T](model: ExecutionModel, config: ActorsConfig): Post[T] = {
+    override def apply[T](model: ExecutionModel, config: ActorsConfig): PostOffice[T] = {
       val user = mpsc[T](
         config.queueInitSize,
         config.queueMaxSize,
@@ -93,17 +76,12 @@ object Mailbox {
         config.queueInitSize,
         config.queueMaxSize,
       )
-      val system = mpsc[SystemMessage](
+      val systemMail = mpsc[SystemMessage](
         config.queueInitSize,
         config.queueMaxSize,
       )
-      val (userMail, systemMail) = model match {
-        case ExecutionModel.Pinned =>
-          protocolPinned[T](timer, user) -> systemPinned(system)
-        case _ =>
-          protocolShifting[T](timer, user) -> systemShifting(system)
-      }
-      new Post[T](
+      val userMail = protocol[T](timer, user)
+      new PostOffice[T](
         userQueue = user,
         timerQueue = timer,
         systemMail = systemMail,

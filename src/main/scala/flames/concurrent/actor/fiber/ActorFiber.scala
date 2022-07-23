@@ -227,6 +227,7 @@ object ActorFiber {
         runtime.config,
         parent,
         path,
+        AcquireRelease.lockFree(model),
       )
       val execution = model match {
         case ExecutionModel.Async =>
