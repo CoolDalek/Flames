@@ -63,12 +63,14 @@ trait Actor[T, Execution <: ExecutionModel](using ActorEnv, ValueOf[Execution]) 
     ref
   }
 
-  inline protected def receive(inline act: StateAccess ?=> T => Behavior[T]): ReceiveProtocol[T] = {
+  protected final type WithState[T] = StateAccess ?=> T
+
+  inline protected def receive(inline act: WithState[T => Behavior[T]]): ReceiveProtocol[T] = {
     given StateAccess = new StateAccess {}
     BehaviorBuilder.Receive(act)
   }
   
-  inline protected def receiveSystem(inline act: StateAccess ?=> SystemMessage => Behavior[T]): ReceiveSystem[T] = {
+  inline protected def receiveSystem(inline act: WithState[SystemMessage => Behavior[T]]): ReceiveSystem[T] = {
     given StateAccess = new StateAccess {}
     BehaviorBuilder.Receive(act)
   }
