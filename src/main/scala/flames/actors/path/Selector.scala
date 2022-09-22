@@ -7,7 +7,9 @@ import Ack.*
 import flames.actors.behavior.Behavior
 import flames.actors.path.Selector.Protocol
 import Protocol.*
+import flames.actors.collections.ActorRefSet
 import flames.actors.ref.*
+import flames.actors.utils.Nulls.*
 
 import scala.collection.mutable
 
@@ -24,10 +26,10 @@ class Selector {
                 )(using ActorEnv[Protocol]) extends Actor[Protocol]("selector-combiner") {
 
     private val builder = Set.newBuilder[ErasedRef]
-    private val waitOn = mutable.Map.empty[ActorPath, ErasedRef]
+    private val waitOn: ActorRefSet[Nothing] = ???
 
     private def dontWait(path: ActorPath): Unit =
-      waitOn.remove(path).foreach(unwatch)
+      waitOn.remove(path).notNull(x => unwatch(x))
 
     private def tryComplete(): Behavior[Protocol] =
       if(waitOn.isEmpty)
@@ -44,7 +46,7 @@ class Selector {
       rootSet.foreach { ref =>
         ref.internalTell(request)
         watch(ref)
-        waitOn.update(ref.path, ref)
+        waitOn.add(ref)
       }
       receive {
         case Result(from, set) =>
@@ -55,7 +57,7 @@ class Selector {
           dontWait(from)
           to.foreach { ref =>
             watch(ref)
-            waitOn.update(ref.path, ref)
+            waitOn.add(ref)
           }
           same
         case NoResults(from) =>
@@ -63,7 +65,7 @@ class Selector {
           tryComplete()
         case NoTimeLeft =>
           complete(DeliveryFailure.TimedOut)
-          waitOn.foreach(x => unwatch(x._2))
+          waitOn.foreach(unwatch)
           stop
       } and receiveSystem {
         case WatchedStopped(path, _) =>

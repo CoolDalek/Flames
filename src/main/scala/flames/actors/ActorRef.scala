@@ -26,4 +26,13 @@ trait ActorRef[-T] {
 
   def tag: Class[?]
 
+  override def equals(obj: Any): Boolean =
+    obj match
+      case that: ActorRef[?] =>
+        path == that.path
+      case _ => false
+  end equals
+
+  override def hashCode(): Int = path.##
+
 }

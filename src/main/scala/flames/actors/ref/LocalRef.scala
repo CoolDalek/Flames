@@ -21,7 +21,7 @@ class LocalRef[T](
     path,
   }
   
-  def safeTell[R](msg: R, tell: R => Ack[Unit]): Unit =
+  private def safeTell[R](msg: R, tell: R => Ack[Unit]): Unit =
     tell(msg) match
       case Undelivered(reason) =>
         fiber.system.deadLetter.publish(msg, path, reason)

@@ -9,7 +9,7 @@ import flames.actors.*
 import flames.actors.message.*
 import flames.actors.message.StopReason.Unknown
 import flames.actors.path.ActorPath
-import flames.actors.utils.*
+import flames.actors.utils.Nulls.*
 
 import java.util.concurrent.atomic.AtomicReference
 import scala.collection.mutable

@@ -1,11 +1,10 @@
 package flames.actors.message
 
-import flames.actors.utils.*
+import flames.actors.utils.Nulls.*
 import SystemMessage.InternalMessage
 
 import java.util.Queue as JQueue
 import java.util.concurrent.ConcurrentLinkedQueue
-import scala.language.postfixOps
 
 trait Mailbox[T] {
   

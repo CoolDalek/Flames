@@ -6,7 +6,7 @@ import flames.actors.message.*
 import flames.actors.path.*
 import flames.actors.pattern.*
 import flames.actors.system.*
-import flames.actors.utils.*
+import flames.actors.utils.Nulls.*
 import flames.actors.ref.*
 
 import scala.concurrent.ExecutionContext

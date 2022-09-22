@@ -1,6 +1,6 @@
 package flames.actors.path
 
-import flames.actors.utils.*
+import flames.actors.utils.Nulls.*
 
 import java.util.Objects
 import scala.reflect.*

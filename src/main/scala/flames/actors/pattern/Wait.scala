@@ -2,6 +2,7 @@ package flames.actors.pattern
 
 import flames.actors.message.*
 import Ack.*
+import flames.actors.utils.SummonerK
 
 trait Wait[F[_]] {
 
@@ -20,8 +21,4 @@ trait Wait[F[_]] {
   }
 
 }
-object Wait {
-
-  inline def apply[F[_]: Wait]: Wait[F] = summon[Wait[F]]
-
-}
+object Wait extends SummonerK[Wait]
