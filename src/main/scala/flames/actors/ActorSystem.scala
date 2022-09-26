@@ -16,13 +16,13 @@ import scala.reflect.{ClassTag, classTag}
 trait ActorSystem(
                    name: String,
                    unique: Unique,
-                   val deadLetter: DeadLetter,
+                   makeDeadLetter: DeadLetter.Factory,
                  ) extends ExecutionContext {
-  self =>
-
-  protected given ActorSystem = self
+  protected given ActorSystem = this
 
   protected val root = new Root(name)(using ActorEnv.root[Root.Protocol])
+  
+  val deadLetter: DeadLetter = makeDeadLetter(this)
 
   inline def spawn[F[_] : Wait]: Spawner.All[F] = Spawner.All[F](root)
 
@@ -101,12 +101,12 @@ trait ActorSystem(
     val parent = ActorEnv.parent[T]
     val path = parent.mapOrElse(
       x => ActorPath.child(x.path, name),
-      ActorPath.root(name, self.path.unique)
+      ActorPath.root(name, this.path.unique)
     )
     val fiber = Fiber[T](
       behavior = behavior,
       mailbox = mailbox,
-      system = self,
+      system = this,
       childs = childs,
       parent = parent,
       path = path,
