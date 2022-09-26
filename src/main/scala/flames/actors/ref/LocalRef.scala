@@ -20,8 +20,8 @@ class LocalRef[T](
     addChild,
     path,
   }
-  
-  def safeTell[R](msg: R, tell: R => Ack[Unit]): Unit =
+
+  private def safeTell[R](msg: R, tell: R => Ack[Unit]): Unit =
     tell(msg) match
       case Undelivered(reason) =>
         fiber.system.deadLetter.publish(msg, path, reason)
@@ -41,7 +41,7 @@ class LocalRef[T](
     Wait[F].sync(fiber.userTell(msg))
 
   override def ask[F[_] : Wait, Response](request: ActorRef[Response] => T)(using Timeout): F[Ack[Response]] = ???
-  
+
   override private[actors] def watchRequest[R](ref: ActorRef[R]): Unit =
     fiber.internalTell(SystemMessage.WatchRequest(ref)) match
       case Undelivered(reason) =>
