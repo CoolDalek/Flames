@@ -14,53 +14,58 @@ sealed trait ActorPath {
 
   inline def value: String = toString
 
-  override def hashCode(): Int = Objects.hash(name, unique)
-
 }
-object ActorPath {
+private[actors] object ActorPath {
 
-  private class Child(
-                       val parent: ActorPath,
-                       val name: String,
-                       val unique: Unique,
-                     ) extends ActorPath {
+  case class Child(
+                    parent: ActorPath,
+                    name: String,
+                    unique: Unique,
+                  ) extends ActorPath {
     override def toString: String = s"$parent/$name-$unique"
 
-    override def equals(obj: Any): Boolean =
-      obj match
-        case that: Child =>
-          this.name == that.name && this.unique == that.unique && this.parent == that.parent
-        case _ => false
-    end equals
-
   }
-  private class Root(
-                      val name: String,
-                      val unique: Unique,
-                    ) extends ActorPath {
+  case class Local(
+                    name: String,
+                    unique: Unique,
+                  ) extends ActorPath {
     override def parent: ActorPath = this
     override def toString: String = name
 
-    override def equals(obj: Any): Boolean =
-      obj match
-        case that: Root =>
-          this.name == that.name && this.parent == that.parent
-        case _ => false
-    end equals
+  }
+
+  case class Remote(
+                     name: String,
+                     unique: Unique,
+                     host: String,
+                     port: Int,
+                   ) extends ActorPath {
+
+    override def parent: ActorPath = this
+
+    override def toString: String = name
 
   }
 
-  private[actors] def child(parent: ActorPath, name: String): ActorPath =
+  def child(parent: ActorPath, name: String): ActorPath =
     Child(
       parent,
       name,
       parent.unique.next(),
     )
 
-  private[actors] def root(system: String, unique: Unique): ActorPath =
-    Root(
+  def local(system: String, unique: Unique): ActorPath =
+    Local(
       name = system,
       unique = unique,
+    )
+
+  def remote(system: String, unique: Unique, host: String, port: Int): ActorPath =
+    Remote(
+      name = system,
+      unique = unique,
+      host = host,
+      port = port,
     )
 
 }

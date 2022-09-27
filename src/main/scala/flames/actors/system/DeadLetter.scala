@@ -27,7 +27,7 @@ object DeadLetter {
   }
 
   import Protocol.*
-  class Default(using ActorEnv[Protocol]) extends DeadLetter with Actor[Protocol]("dead-letter") {
+  class Default(using ActorEnv[Protocol]) extends DeadLetter with Actor[Protocol]("dead-letter"):
     override def publish[T](message: T, target: ActorPath, reason: DeliveryFailure): Unit =
       self.tell(
         Dead(message, target, reason)
@@ -66,6 +66,6 @@ object DeadLetter {
           same
       }.ignore
 
-  }
+  end Default
 
 }

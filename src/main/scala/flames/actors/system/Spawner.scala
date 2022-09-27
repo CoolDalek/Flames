@@ -12,7 +12,7 @@ object Spawner {
   class Obj[F[_] : Wait](root: Root):
 
     inline def apply[T: ClassTag, R <: Actor[T]](inline actor: ActorEnv[T] ?=> R): F[R] =
-      Wait[F].async[R] { callback =>
+      Wait[F].asyncAck[R] { callback =>
         root.selfRef.tell(
           root.makeSpawn(actor, callback)
         )

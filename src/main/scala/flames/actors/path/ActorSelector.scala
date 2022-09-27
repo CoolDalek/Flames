@@ -5,10 +5,10 @@ import flames.actors.utils.*
 import java.util.Objects
 import scala.reflect.*
 
-class ActorSelector private(
-                             private[actors] val name: String,
-                             private[actors] val unique: Unique | Null,
-                           ) {
+sealed trait ActorSelector {
+
+  private[actors] def name: String
+  private[actors] def unique: Unique | Null
 
   def nameCondition: String =
     name
@@ -16,26 +16,39 @@ class ActorSelector private(
   def uniqueCondition: Option[Unique] =
     unique.toOption
 
-  override def hashCode(): Int = Objects.hash(name, unique)
+  def matches(path: ActorPath): Boolean
 
-  override def equals(obj: Any): Boolean =
-    obj match
-      case that: ActorSelector =>
-        name == that.name && (unique eq that.unique)
-      case _ => false
-  end equals
-
-  override def toString: String =
-    val namePart = s"Actor selector by: name=$name"
-    val uniquePart = unique.mapOrElse(
-      x => s", unique=$x",
-      "",
+  protected inline def matchUnique(path: ActorPath): Boolean =
+    unique.mapOrElse(
+      x => x == path.unique,
+      true
     )
-    s"$namePart$uniquePart"
-  end toString
 
 }
 object ActorSelector {
+
+  private[actors] case class Simple(
+                                     name: String, 
+                                     unique: Unique | Null,
+                                   ) extends ActorSelector {
+    def matches(path: ActorPath): Boolean =
+      path.name == name && matchUnique(path)
+    
+  }
+
+  private[actors] case class Remote(
+                                     name: String, 
+                                     unique: Unique | Null, 
+                                     host: String, 
+                                     port: Int,
+                                   ) extends ActorSelector {
+    override def matches(path: ActorPath): Boolean =
+      path match
+        case remote: ActorPath.Remote =>
+          remote.name == name && remote.host == host && remote.port == port && matchUnique(remote)
+        case _ => false
+    end matches
+  }
 
   extension (self: ActorSelector) {
 
@@ -54,6 +67,9 @@ object ActorSelector {
   }
 
   def apply(name: String, unique: Unique | Null = null): ActorSelector =
-    new ActorSelector(name, unique)
+    Simple(name, unique)
+
+  def remote(name: String, host: String, port: Int, unique: Unique | Null = null): ActorSelector =
+    Remote(name, unique, host, port)
 
 }

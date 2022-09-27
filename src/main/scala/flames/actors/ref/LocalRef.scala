@@ -38,7 +38,7 @@ class LocalRef[T](
     safeTell(msg, fiber.internalTell)
 
   override def ackTell[F[_] : Wait](msg: T): F[Ack[Unit]] =
-    Wait[F].sync(fiber.userTell(msg))
+    Wait[F].lift(fiber.userTell(msg))
 
   override def ask[F[_] : Wait, Response](request: ActorRef[Response] => T)(using Timeout): F[Ack[Response]] = ???
 

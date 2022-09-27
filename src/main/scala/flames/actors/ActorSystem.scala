@@ -16,81 +16,28 @@ import scala.reflect.{ClassTag, classTag}
 trait ActorSystem(
                    name: String,
                    unique: Unique,
-                   makeDeadLetter: DeadLetter.Factory,
                  ) extends ExecutionContext {
   protected given ActorSystem = this
 
-  protected val root = new Root(name)(using ActorEnv.root[Root.Protocol])
-  
-  val deadLetter: DeadLetter = makeDeadLetter(this)
+  def path: ActorPath
 
-  inline def spawn[F[_] : Wait]: Spawner.All[F] = Spawner.All[F](root)
+  def root: ErasedRef = deployment.root.selfRef
 
-  inline def spawnFire[F[_] : Wait]: Spawner.Fire[F] = Spawner.Fire[F](root)
+  def deadLetter: DeadLetter = deployment.deadLetter
 
-  inline def spawnRef[F[_] : Wait]: Spawner.Ref[F] = Spawner.Ref[F](root)
+  def deployment: Deployment
 
-  inline def spawnObj[F[_] : Wait]: Spawner.Obj[F] = Spawner.Obj[F](root)
-/*
-  def selectErased[F[_] : Wait](selector: Vector[ActorSelector])(using timeout: Timeout): F[SelectionResult[Nothing]] =
-    import flames.actors.path.SelectionResult.*
+  inline def spawn[F[_] : Wait]: Spawner.All[F] = Spawner.All[F](deployment.root)
 
-    def validRoot: Boolean = {
-      val rootSelector = selector(0)
-      val namesEqual = rootSelector.name == path.name
-      val uniquesEqual = rootSelector.unique.mapOrElse(
-        x => x == path.unique,
-        true
-      )
-      namesEqual && uniquesEqual
-    }
+  def spawnFire[F[_] : Wait]: Spawner.Fire[F] = Spawner.Fire[F](deployment.root)
 
-    if (selector.size > 1 && validRoot)
-      val set = childs.search(selector.head)
-      if (selector.size == 2) {
-        val result = SelectionResult.make(set)
-        Wait[F].delivered(result)
-      } else Wait[F].async { callback =>
-        spawnFire {
-          SelectorCombiner(
-            set,
-            selector,
-            callback,
-            timeout,
-          )
-        }
-      }
-    else Wait[F].delivered(NotFound)
-  end selectErased
+  inline def spawnRef[F[_] : Wait]: Spawner.Ref[F] = Spawner.Ref[F](deployment.root)
 
-  def select[T: ClassTag, F[_] : Wait](selector: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]] =
-    import flames.actors.path.SelectionResult.*
+  inline def spawnObj[F[_] : Wait]: Spawner.Obj[F] = Spawner.Obj[F](deployment.root)
 
-    def checkTypes(ref: ActorRef[Nothing]): Boolean =
-      ref.tag.isAssignableFrom(
-        classTag[T].runtimeClass
-      )
-
-    def cast(ref: ActorRef[Nothing]): ActorRef[T] = ref.asInstanceOf[ActorRef[T]]
-
-    selectErased[F](selector).map {
-      case NotFound => NotFound
-      case FoundOne(ref) =>
-        if (checkTypes(ref)) FoundOne(cast(ref))
-        else NotFound
-      case FoundMany(set) =>
-        val filtered = set.collect {
-          case ref if checkTypes(ref) => cast(ref)
-        }
-        SelectionResult.make(filtered)
-    }
-  end select
-*/
   def scheduleMessage[T](delay: FiniteDuration, to: ActorRef[T], message: T): Cancellable
 
   def scheduleMessage[T](delay: FiniteDuration, period: FiniteDuration, to: ActorRef[T], message: T): Cancellable
-
-  final val path: ActorPath = ActorPath.root(name, unique)
 
   private[actors] def makeRef[T](
                                   name: String,
@@ -101,7 +48,7 @@ trait ActorSystem(
     val parent = ActorEnv.parent[T]
     val path = parent.mapOrElse(
       x => ActorPath.child(x.path, name),
-      ActorPath.root(name, this.path.unique)
+      ActorPath.local(name, this.path.unique)
     )
     val fiber = Fiber[T](
       behavior = behavior,
