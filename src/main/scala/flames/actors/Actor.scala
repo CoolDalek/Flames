@@ -1,10 +1,11 @@
 package flames.actors
 
 import flames.actors.fiber.Childs
-import flames.actors.path.ActorPath
+import flames.actors.path.*
 import flames.actors.ref.LocalRef
 import flames.actors.system.Cancellable
 import flames.actors.message.*
+import flames.actors.pattern.Wait
 import utils.*
 
 import scala.concurrent.duration.FiniteDuration
@@ -64,6 +65,9 @@ trait Actor[T](name: String)(using ActorEnv[T]) {
     selfRef.spawn(actor)
   
   protected def childs(using StateAccess): Set[ActorRef[Nothing]] = selfRef.getChilds
+  
+  protected def selectChilds[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]] =
+    system.selector.selectFrom(selfRef, query)
 
   protected def watch[R](ref: ActorRef[R]): Unit =
     ref.watchRequest(selfRef)

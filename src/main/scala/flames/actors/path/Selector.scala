@@ -9,6 +9,7 @@ import flames.actors.path.Selector.Protocol
 import Protocol.*
 import flames.actors.pattern.Wait
 import flames.actors.ref.*
+import flames.actors.remote.Client
 
 import scala.collection.mutable
 import scala.reflect.{ClassTag, classTag}
@@ -19,6 +20,8 @@ trait Selector {
 
   def select[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]]
 
+  private[actors] def remoteRequest[F[_]: Wait](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[Nothing]]
+
   def selectLocal[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]]
 
   def selectRemote[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]]
@@ -28,13 +31,12 @@ trait Selector {
 }
 object Selector {
 
+  def apply(system: ActorSystem, client: Client): Selector = new Impl(system, client)
 
-  class Impl(system: ActorSystem) extends Selector:
+  private class Impl(system: ActorSystem, client: Client) extends Selector:
 
-    inline private def noResults[F[_]: Wait, T]: F[SelectionResult[T]] = Wait[F].lift(SelectionResult.NotFound)
-
-    private def selectLocalImpl[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector], startWith: Int, root: ErasedRef)
-                                                        (using timeout: Timeout): F[SelectionResult[T]] =
+    private def localErased[F[_]: Wait](query: Vector[ActorSelector], startWith: Int, root: ErasedRef)
+                                       (using timeout: Timeout): F[SelectionResult[Nothing]] =
       Wait[F].async[SelectionResult[Nothing]] { callback =>
         system.spawnFire[F][Protocol, Combiner] { (env: ActorEnv[Protocol]) ?=>
           new Combiner(
@@ -45,12 +47,26 @@ object Selector {
             root,
           )(using env)
         }
-      }.map(filterTypes[T])
+      }
+    end localErased
+
+    def remoteRequest[F[_]: Wait](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[Nothing]] =
+      if(query.length > 1) localErased(query, 1, system.root)
+      else Wait[F].lift(SelectionResult.FoundOne(system.root))
+    end remoteRequest
+
+    inline private def noResults[F[_]: Wait, T]: F[SelectionResult[T]] = Wait[F].lift(SelectionResult.NotFound)
+
+    private def selectLocalImpl[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector], startWith: Int, root: ErasedRef)
+                                                        (using Timeout): F[SelectionResult[T]] =
+      localErased[F](query, startWith, root).map(filterTypes[T])
     end selectLocalImpl
 
     private def selectRemoteImpl[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector],
                                                           credentials: ActorSelector.Remote)
-                                                         (using Timeout): F[SelectionResult[T]] = ???
+                                                         (using Timeout): F[SelectionResult[T]] =
+      client.select(query, credentials).map(filterTypes[T])
+    end selectRemoteImpl
 
     private def filterTypes[T: ClassTag](result: SelectionResult[Nothing]): SelectionResult[T] =
       import SelectionResult.*
@@ -135,11 +151,11 @@ object Selector {
       }
     end selectLocal
 
-    override def selectRemote[F[_] : Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]] =
+    override def selectRemote[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]] =
       nonEmpty[F, T](query) {
         import ActorSelector.*
         query.head match
-          case head: Simple =>
+          case _: Simple =>
             noResults[F, T]
           case head: Remote =>
             selectRemoteImpl(query, head)

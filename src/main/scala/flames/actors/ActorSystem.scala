@@ -16,16 +16,17 @@ import scala.reflect.{ClassTag, classTag}
 trait ActorSystem(
                    name: String,
                    unique: Unique,
+                   makeDeployment: ActorSystem => Deployment,
                  ) extends ExecutionContext {
   protected given ActorSystem = this
 
-  def path: ActorPath
-
   def root: ErasedRef = deployment.root.selfRef
 
-  def deadLetter: DeadLetter = deployment.deadLetter
+  def path: ActorPath = root.path
 
-  def deployment: Deployment
+  final val deployment: Deployment = makeDeployment(this)
+  
+  export deployment.{deadLetter, selector}
 
   inline def spawn[F[_] : Wait]: Spawner.All[F] = Spawner.All[F](deployment.root)
 
