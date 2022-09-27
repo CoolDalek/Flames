@@ -24,7 +24,7 @@ trait Selector {
 
   def selectLocal[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]]
 
-  def selectRemote[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]]
+  def selectRemote[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[Ack[SelectionResult[T]]]
 
   def selectFrom[F[_]: Wait, T: ClassTag](start: ErasedRef, query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]]
 
@@ -51,11 +51,14 @@ object Selector {
     end localErased
 
     def remoteRequest[F[_]: Wait](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[Nothing]] =
-      if(query.length > 1) localErased(query, 1, system.root)
-      else Wait[F].lift(SelectionResult.FoundOne(system.root))
+      if(query.head.matches(system.root))
+        if(query.length > 1) localErased(query, 1, system.root)
+        else Wait[F].lift(SelectionResult.FoundOne(system.root))
+      else noResults[F, Nothing]
     end remoteRequest
 
     inline private def noResults[F[_]: Wait, T]: F[SelectionResult[T]] = Wait[F].lift(SelectionResult.NotFound)
+    inline private def noResultsAck[F[_]: Wait, T]: F[Ack[SelectionResult[T]]] = Wait[F].lift(Ack.Delivered(SelectionResult.NotFound))
 
     private def selectLocalImpl[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector], startWith: Int, root: ErasedRef)
                                                         (using Timeout): F[SelectionResult[T]] =
@@ -64,8 +67,12 @@ object Selector {
 
     private def selectRemoteImpl[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector],
                                                           credentials: ActorSelector.Remote)
-                                                         (using Timeout): F[SelectionResult[T]] =
-      client.select(query, credentials).map(filterTypes[T])
+                                                         (using Timeout): F[Ack[SelectionResult[T]]] =
+      import Ack.*
+      client.select(query, credentials).map {
+        case Delivered(result) => Delivered(filterTypes[T](result))
+        case failure => failure.asInstanceOf[Ack[SelectionResult[T]]]
+      }
     end selectRemoteImpl
 
     private def filterTypes[T: ClassTag](result: SelectionResult[Nothing]): SelectionResult[T] =
@@ -87,7 +94,7 @@ object Selector {
           val filtered = set.collect {
             case ref if checkTypes(ref) => cast(ref)
           }
-          SelectionResult.make(filtered)
+          SelectionResults.make(filtered)
       }
     end filterTypes
 
@@ -98,34 +105,42 @@ object Selector {
       else noResults[F, T]
     end nonEmpty
 
-    override def select[F[_] : Wait, T: ClassTag](query: Vector[ActorSelector])
-                                                 (using Timeout): F[SelectionResult[T]] =
+    inline private def nonEmptyAck[F[_]: Wait, T](query: Vector[ActorSelector])
+                                                 (inline select: => F[Ack[SelectionResult[T]]]): F[Ack[SelectionResult[T]]] =
+      if(query.length > 1)
+        select
+      else noResultsAck[F, T]
+    end nonEmptyAck
 
-      def localOr(orElse: => F[SelectionResult[T]]): F[SelectionResult[T]] =
+    override def select[F[_] : Wait, T: ClassTag](query: Vector[ActorSelector])
+                                                 (using Timeout): F[Ack[SelectionResult[T]]] =
+
+      def localOr(orElse: => F[Ack[SelectionResult[T]]]): F[Ack[SelectionResult[T]]] =
         if (query(1).matches(system.path))
-          if (query.length > 1)
+          val local = if (query.length > 1)
             selectLocalImpl[F, T](query, 1, system.root)
           else Wait[F].lift {
             filterTypes[T](SelectionResult.FoundOne(system.root))
           }
+          local.map(Ack.Delivered.apply)
         else orElse
       end localOr
 
-      nonEmpty[F, T](query) {
+      nonEmptyAck[F, T](query) {
         import ActorSelector.*
         query(1) match
           case _: Simple =>
             system.path match
               case _: (ActorPath.Local | ActorPath.Child) =>
-                localOr(noResults[F, T])
-              case _: ActorPath.Remote => noResults[F, T]
+                localOr(noResultsAck[F, T])
+              case _: ActorPath.Remote => noResultsAck[F, T]
           case credentials: Remote =>
             system.path match
               case _: ActorPath.Remote =>
                 localOr {
                   selectRemoteImpl[F, T](query, credentials)
                 }
-              case _: (ActorPath.Local | ActorPath.Child) => noResults[F, T]
+              case _: (ActorPath.Local | ActorPath.Child) => noResultsAck[F, T]
       }
     end select
 
@@ -151,12 +166,12 @@ object Selector {
       }
     end selectLocal
 
-    override def selectRemote[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]] =
-      nonEmpty[F, T](query) {
+    override def selectRemote[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[Ack[SelectionResult[T]]] =
+      nonEmptyAck[F, T](query) {
         import ActorSelector.*
         query.head match
           case _: Simple =>
-            noResults[F, T]
+            noResultsAck[F, T]
           case head: Remote =>
             selectRemoteImpl(query, head)
       }
@@ -181,7 +196,7 @@ object Selector {
       private def tryComplete(): Behavior[Protocol] =
         if (waitOn.isEmpty)
           val set = builder.result()
-          val result = SelectionResult.make(set)
+          val result = SelectionResults.make(set)
           complete(result)
           stop
         else same

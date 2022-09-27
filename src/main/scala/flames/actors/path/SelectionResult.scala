@@ -7,17 +7,8 @@ enum SelectionResult[-T] {
   case FoundOne[T](ref: ActorRef[T]) extends SelectionResult[T]
   case FoundMany[T](set: Set[ActorRef[T]]) extends SelectionResult[T]
 }
-object SelectionResult
-
-import flames.actors.path.SelectionResult.*
-
-extension (self: SelectionResult.type) {
-
-  inline def make[T](set: Set[ActorRef[T]]): SelectionResult[T] = SelectionResults.make(set)
-
-}
-
 object SelectionResults {
+  import SelectionResult.*
 
   def make[T](set: Set[ActorRef[T]]): SelectionResult[T] =
     if(set.isEmpty) NotFound

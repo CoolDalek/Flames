@@ -6,6 +6,7 @@ import flames.actors.message.DeliveryFailure
 import flames.actors.path.ActorPath
 
 import java.util.UUID
+import scala.util.control.NonFatal
 
 trait DeadLetter {
   
@@ -54,7 +55,10 @@ object DeadLetter {
       receive {
         case event: Dead =>
           subscriptions.foreach { (_, sub) =>
-            sub.handler(event)
+            try {
+              sub.handler(event)
+            } catch case NonFatal(_) => () // Don't throw exceptions in your subscriptions
+            //TODO: LOGGING
           }
           same
         case Subscribe(token, sub) =>
