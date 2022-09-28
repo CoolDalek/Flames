@@ -49,7 +49,11 @@ class Fiber[T](
     mailbox.drainProtocol(deadLetter)
   end reportStop
 
-  private def scheduleRun(): Unit = system.execute(() => executionLoop())
+  private def scheduleRun(): Unit =
+    system.execute { () =>
+      //There is no way State is not Running, but we need to synchronize the actor's data, so we just pretend to work here.
+      if(state.get() == Running) executionLoop()
+    }
 
   def tell[R](msg: R, push: R => Boolean): Ack[Unit] =
     state.get() match
@@ -95,7 +99,11 @@ class Fiber[T](
             processMail(mailbox.pollProtocol(), processProtocol) {
               if (mailbox.isEmpty)
                 state.set(Idle)
-                loop = false
+                if(mailbox.isEmpty)
+                  loop = false
+                else
+                  val continue = state.compareAndSet(Idle, Running)
+                  if(!continue) loop = false
             }
           }
         catch {
@@ -107,6 +115,8 @@ class Fiber[T](
 
       } else {
         loop = false
+        //Change Running from Running just for synchronization.
+        state.set(Running)
         scheduleRun()
       }
     }

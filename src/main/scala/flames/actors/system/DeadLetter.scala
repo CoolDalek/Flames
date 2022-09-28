@@ -18,7 +18,6 @@ object DeadLetter {
 
   type Factory = ActorSystem => DeadLetter
 
-
   case class Subscription(handler: PartialFunction[DeadLetterEvent, Unit], cancel: Cancellable.Signal)
   enum Protocol {
     case Dead(message: Any, target: ActorPath, reason: DeliveryFailure) extends Protocol with DeadLetterEvent

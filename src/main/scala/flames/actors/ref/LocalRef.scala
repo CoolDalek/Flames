@@ -3,7 +3,7 @@ package flames.actors.ref
 import flames.actors.fiber.Fiber
 import flames.actors.message.*
 import SystemMessage.InternalMessage
-import flames.actors.pattern.Wait
+import flames.actors.pattern.*
 import flames.actors.*
 import Ack.*
 import DeliveryFailure.*
@@ -40,7 +40,14 @@ class LocalRef[T](
   override def ackTell[F[_] : Wait](msg: T): F[Ack[Unit]] =
     Wait[F].lift(fiber.userTell(msg))
 
-  override def ask[F[_] : Wait, Response](request: ActorRef[Response] => T)(using Timeout): F[Ack[Response]] = ???
+  override def ask[F[_] : Wait, Response](request: ActorRef[Response] => T)(using timeout: Timeout): F[Ack[Response]] =
+    Wait[F].asyncAck[Response] { callback =>
+      fiber.system.spawnRef {
+        new Asker[Response](callback, timeout)
+      }.map { ref =>
+        tell(request(ref))
+      }
+    }
 
   override private[actors] def watchRequest[R](ref: ActorRef[R]): Unit =
     fiber.internalTell(SystemMessage.WatchRequest(ref)) match
