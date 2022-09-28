@@ -51,7 +51,7 @@ object Selector {
     end localErased
 
     def remoteRequest[F[_]: Wait](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[Nothing]] =
-      if(query.head.matches(system.root))
+      if(query.head.matches(system.path))
         if(query.length > 1) localErased(query, 1, system.root)
         else Wait[F].lift(SelectionResult.FoundOne(system.root))
       else noResults[F, Nothing]
