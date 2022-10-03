@@ -32,7 +32,7 @@ trait Actor[T](name: String)(using ActorEnv[T]) {
 
   protected def act(): Behavior[T]
 
-  protected def self: ActorRef[T] = selfRef
+  protected[actors] final def self: ActorRef[T] = selfRef
   
   inline protected def receive(inline receive: WithState[T => Behavior[T]]): ReceiveProtocol[T] =
     Builder.Receive(receive)

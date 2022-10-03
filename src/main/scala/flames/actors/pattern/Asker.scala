@@ -12,7 +12,7 @@ class Asker[T](
   override def act(): Behavior[Any] =
     scheduleToSelf(timeout.asDuration, DeliveryFailure.TimedOut)
     receive { msg =>
-      complete(msg.asInstanceOf[DeliveryFailure | T])
+      complete.asInstanceOf[Any => Unit](msg)
       stop
     }.ignore
   end act

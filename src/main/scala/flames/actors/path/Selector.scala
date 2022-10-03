@@ -18,15 +18,20 @@ type SelectorRef = ActorRef[Protocol]
 
 trait Selector {
 
-  def select[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]]
+  def select[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])
+                                     (using Timeout): F[SelectionResult[T]]
 
-  private[actors] def remoteRequest[F[_]: Wait](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[Nothing]]
+  private[actors] def remoteRequest[F[_]: Wait](query: Vector[ActorSelector])
+                                               (using Timeout): F[SelectionResult[Nothing]]
 
-  def selectLocal[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]]
+  def selectLocal[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])
+                                          (using Timeout): F[SelectionResult[T]]
 
-  def selectRemote[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[Ack[SelectionResult[T]]]
+  def selectRemote[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])
+                                           (using Timeout): F[Ack[SelectionResult[T]]]
 
-  def selectFrom[F[_]: Wait, T: ClassTag](start: ErasedRef, query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]]
+  def selectFrom[F[_]: Wait, T: ClassTag](start: ErasedRef, query: Vector[ActorSelector])
+                                         (using Timeout): F[SelectionResult[T]]
 
 }
 object Selector {
@@ -38,14 +43,14 @@ object Selector {
     private def localErased[F[_]: Wait](query: Vector[ActorSelector], startWith: Int, root: ErasedRef)
                                        (using timeout: Timeout): F[SelectionResult[Nothing]] =
       Wait[F].async[SelectionResult[Nothing]] { callback =>
-        system.spawnFire[F][Protocol, Combiner] { (env: ActorEnv[Protocol]) ?=>
+        system.spawnFire {
           new Combiner(
             query,
             callback,
             timeout,
             startWith,
             root,
-          )(using env)
+          )
         }
       }
     end localErased

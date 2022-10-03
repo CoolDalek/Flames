@@ -28,13 +28,26 @@ trait ActorSystem(
   
   export deployment.{deadLetter, selector}
 
-  inline def spawn[F[_] : Wait]: Spawner.All[F] = Spawner.All[F](deployment.root)
+  def spawn[F[_] : Wait, T: ClassTag, R <: Actor[T]](actor: ActorEnv[T] ?=> R): F[(R, ActorRef[T])] =
+    spawnObj[F, T, R](actor).map(x => x -> x.self)
 
-  def spawnFire[F[_] : Wait]: Spawner.Fire[F] = Spawner.Fire[F](deployment.root)
+  def spawnFire[F[_] : Wait, T: ClassTag, R <: Actor[T]](actor: ActorEnv[T] ?=> R): F[Unit] =
+    spawnObj[F, T, R](actor).map(_ => ())
 
-  inline def spawnRef[F[_] : Wait]: Spawner.Ref[F] = Spawner.Ref[F](deployment.root)
+  def spawnRef[F[_] : Wait, T: ClassTag, R <: Actor[T]](actor: ActorEnv[T] ?=> R): F[ActorRef[T]] =
+    spawnObj[F, T, R](actor).map(_.self)
 
-  inline def spawnObj[F[_] : Wait]: Spawner.Obj[F] = Spawner.Obj[F](deployment.root)
+  def spawnObj[F[_] : Wait, T: ClassTag, R <: Actor[T]](actor: ActorEnv[T] ?=> R): F[R] =
+    import Ack.*
+    Wait[F].asyncAck[R] { callback =>
+      deployment.root.selfRef.tell(
+        deployment.root.makeSpawn(actor, callback)
+      )
+    }.map {
+      case Delivered(value) => value
+      case Undelivered(failure) => throw failure // If this happens we have really serious problems
+    }
+  end spawnObj
 
   def scheduleMessage[T](delay: FiniteDuration, to: ActorRef[T], message: T): Cancellable
 
