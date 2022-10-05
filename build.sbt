@@ -6,8 +6,8 @@ lazy val root = (project in file("."))
   .settings(
     name := "Flames",
     libraryDependencies ++= Seq(
-      "dev.zio" % "zio-actors_2.13" % "0.0.9",
-      "com.typesafe.akka" %% "akka-actor-typed" % "2.6.20",
-      "com.lihaoyi" % "castor_2.13" % "0.1.7",
+      "org.jctools" % "jctools-core" % "3.3.0",
+      "org.typelevel" %% "cats-effect" % "3.3.14",
+      "dev.zio" %% "zio" % "2.0.2",
     )
   )
