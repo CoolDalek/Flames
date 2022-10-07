@@ -6,22 +6,22 @@ import scala.annotation.tailrec
 
 object Macro:
   
-  transparent inline def varHandleMacro[R, T](
-                                               inline getter: R => T,
-                                               ofClass: Class[R],
-                                               selfClass: Class[T],
-                                             ): VarHandle.Apply[T, R] =
-    ${varHandleMacroImpl[R, T]('getter, 'ofClass, 'selfClass)}
+  transparent inline def vhMacro[C, V](
+                                        inline getter: C => V,
+                                        ofClass: Class[C],
+                                        selfClass: Class[V],
+                                      ): Any =
+    ${vhMacroImpl[C, V]('getter, 'ofClass, 'selfClass)}
 
-  def varHandleMacroImpl[R: Type, T: Type](
-                                            getter: Expr[R => T],
-                                            ofClass: Expr[Class[R]],
-                                            selfClass: Expr[Class[T]]
-                                          )(using
-                                           Quotes,
-                                           Type[VarHandle],
-                                           Type[VarGet],
-                                          ): Expr[VarHandle.Apply[T, R]] =
+  def vhMacroImpl[C: Type, V: Type](
+                                     getter: Expr[C => V],
+                                     ofClass: Expr[Class[C]],
+                                     selfClass: Expr[Class[V]]
+                                   )(using
+                                     Quotes,
+                                     Type[VarHandle],
+                                     Type[VarGet],
+                                   ): Expr[Any] =
     import quotes.reflect.*
     import java.lang.invoke.{MethodHandles, VarHandle as JVarHandle}
 
@@ -42,7 +42,7 @@ object Macro:
 
     val field = findField(getter.asTerm)
     val fieldName = field.name
-    val fieldOfClass = TypeRepr.of[R].classSymbol
+    val fieldOfClass = TypeRepr.of[C].classSymbol
       .exists(
         _.fieldMember(
           fieldName
@@ -66,48 +66,21 @@ object Macro:
             $selfClass,
           )
       }
-      if(isVariable) '{
-        new Field[T, R] {
-
-          override type Handle[x] = VarHandle[x]
-
-          override val handle: VarHandle[T] =
-            VarHandle.unsafeCoerce[T, VarHandle]($make)
-
-          override val of: Class[R] = $ofClass
-
-          override val self: Class[T] = $selfClass
-
-          override val name: String = ${Expr(fieldName)}
-
-          override val isStatic: Boolean = ${Expr(isConstant)}
-
-          override val isMutable: Boolean = ${Expr(isVariable)}
-
-        }
-      } else '{
-        new Field[T, R] {
-
-          override type Handle[x] = VarGet[x]
-
-          override val handle: VarGet[T] =
-            VarHandle.unsafeCoerce[T, VarGet]($make)
-
-          override val of: Class[R] = $ofClass
-
-          override val self: Class[T] = $selfClass
-
-          override val name: String = ${Expr(fieldName)}
-
-          override val isStatic: Boolean = ${Expr(isConstant)}
-
-          override val isMutable: Boolean = ${Expr(isVariable)}
-
-        }
+      val vhType = Applied(
+        if (isVariable) TypeTree.of[VarHandle]
+        else TypeTree.of[VarGet],
+        List(
+          TypeTree.of[C],
+          TypeTree.of[V],
+          Singleton(Literal(StringConstant(fieldName))),
+        ),
+      )
+      vhType.tpe.asType match {
+        case '[t] => '{${make}.asInstanceOf[t]}
       }
-    else throw IllegalArgumentException(s"${field.name} is not a field of ${TypeRepr.of[R].show}")
-  end varHandleMacroImpl
-
+    else throw IllegalArgumentException(s"${field.name} is not a field of ${TypeRepr.of[C].show}")
+  end vhMacroImpl
+/*
   inline def findField[T, R](name: String): Option[Boolean] =
     ${findFieldImpl[T, R]('name)}
 
@@ -130,5 +103,5 @@ object Macro:
       }
     }.getOrElse(Expr(None))
   end findFieldImpl
-
+*/
 end Macro

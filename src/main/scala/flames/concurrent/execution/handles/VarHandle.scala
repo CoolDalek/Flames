@@ -1,255 +1,211 @@
 package flames.concurrent.execution.handles
 
 import java.lang.invoke.{MethodHandles, VarHandle as JVarHandle}
-import scala.language.postfixOps
+import scala.annotation.targetName
 import scala.reflect.{ClassTag, classTag}
 
 object VarHandle:
-  type Tag[T] = VarGet[T] | VarSet[T] | VarHandle[T]
-  opaque type VarGet[+T] = JVarHandle
-  opaque type VarSet[-T] = JVarHandle
-  opaque type VarHandle[T] <: VarGet[T] & VarSet[T] = JVarHandle
+  type VarName = String & Singleton
+  type Tag[C, V, N <: VarName] = VarGet[C, V, N] | VarSet[C, V, N] | VarHandle[C, V, N]
+  opaque type VarGet[-Class, +Var, Name <: VarName] = JVarHandle
+  opaque type VarSet[Class, -Var, Name <: VarName] = JVarHandle
+  opaque type VarHandle[Class, Var, Name <: VarName] <: VarGet[Class, Var, Name] & VarSet[Class, Var, Name] = JVarHandle
 
-  extension [T, Handle[x] <: Tag[x]](self: Handle[T]) {
+  opaque type Magnet[C, V, N <: VarName] = C
+
+  extension [C, V, N <: VarName](self: Magnet[C, V, N]) {
+
+    inline def underlying: C = self
+
+  }
+
+  extension [C, V, N <: VarName, Handle[x, y, z <: VarName] <: Tag[x, y, z]](self: Handle[C, V, N]) {
 
     inline def hasInvokeExactBehavior: Boolean =
       self.hasInvokeExactBehavior()
 
-    inline def withInvokeBehavior: Handle[T] =
-      self.withInvokeBehavior().asInstanceOf[Handle[T]]
+    inline def withInvokeBehavior: Handle[C, V, N] =
+      self.withInvokeBehavior().asInstanceOf[Handle[C, V, N]]
 
-    inline def withInvokeExactBehavior: Handle[T] =
-      self.withInvokeExactBehavior().asInstanceOf[Handle[T]]
+    inline def withInvokeExactBehavior: Handle[C, V, N] =
+      self.withInvokeExactBehavior().asInstanceOf[Handle[C, V, N]]
 
-  }
-
-  extension [T](self: VarGet[T]) {
-
-    inline def getPlain[R](from: R)(using Field[T, R]): T =
-      self.get(from).asInstanceOf[T]
-
-    inline def getOpaque[R](from: R)(using Field[T, R]): T =
-      self.getOpaque(from).asInstanceOf[T]
-
-    inline def getAcquire[R](from: R)(using Field[T, R]): T =
-      self.getAcquire(from).asInstanceOf[T]
-
-    inline def getVolatile[R](from: R)(using Field[T, R]): T =
-      self.getVolatile(from).asInstanceOf[T]
+    inline def magnetize(instance: C): Magnet[C, V, N] = instance
 
   }
 
-  extension [T](self: VarSet[T]) {
+  extension [C, V, N <: VarName](self: VarGet[C, V, N]) {
 
-    inline def setPlain[R](on: R, value: T)(using Field[T, R]): Unit =
+    @targetName("getPE")
+    inline def getPlain(from: C): V =
+      self.get(from).asInstanceOf[V]
+
+    @targetName("getOE")
+    inline def getOpaque(from: C): V =
+      self.getOpaque(from).asInstanceOf[V]
+
+    @targetName("getAE")
+    inline def getAcquire(from: C): V =
+      self.getAcquire(from).asInstanceOf[V]
+
+    @targetName("getVE")
+    inline def getVolatile(from: C): V =
+      self.getVolatile(from).asInstanceOf[V]
+
+    @targetName("getPI")
+    inline def getPlain(using from: Magnet[C, V, N]): V =
+      self.get(from).asInstanceOf[V]
+
+    @targetName("getOI")
+    inline def getOpaque(using from: Magnet[C, V, N]): V =
+      self.getOpaque(from).asInstanceOf[V]
+
+    @targetName("getAI")
+    inline def getAcquire(using from: Magnet[C, V, N]): V =
+      self.getAcquire(from).asInstanceOf[V]
+
+    @targetName("getVI")
+    inline def getVolatile(using from: Magnet[C, V, N]): V =
+      self.getVolatile(from).asInstanceOf[V]
+
+  }
+
+  extension[C, V, N <: VarName] (self: VarSet[C, V, N]) {
+
+    @targetName("setPE")
+    inline def setPlain(on: C, value: V): Unit =
       self.set(on, value)
 
-    inline def setOpaque[R](on: R, value: T)(using Field[T, R]): Unit =
+    @targetName("setOE")
+    inline def setOpaque(on: C, value: V): Unit =
       self.setOpaque(on, value)
 
-    inline def setRelease[R](on: R, value: T)(using Field[T, R]): Unit =
+    @targetName("setRE")
+    inline def setRelease(on: C, value: V): Unit =
       self.setRelease(on, value)
 
-    inline def setVolatile[R](on: R, value: T)(using Field[T, R]): Unit =
+    @targetName("setVE")
+    inline def setVolatile(on: C, value: V): Unit =
+      self.setVolatile(on, value)
+
+    @targetName("setPI")
+    inline def setPlain(value: V)(using on: Magnet[C, V, N]): Unit =
+      self.set(on, value)
+
+    @targetName("setOI")
+    inline def setOpaque(value: V)(using on: Magnet[C, V, N]): Unit =
+      self.setOpaque(on, value)
+
+    @targetName("setRI")
+    inline def setRelease(value: V)(using on: Magnet[C, V, N]): Unit =
+      self.setRelease(on, value)
+
+    @targetName("setVI")
+    inline def setVolatile(value: V)(using on: Magnet[C, V, N]): Unit =
       self.setVolatile(on, value)
 
   }
 
-  extension [T](self: VarHandle[T]) {
+  extension[C, V, N <: VarName] (self: VarHandle[C, V, N]) {
 
-    inline def weakCompareAndSetPlain[R](where: R, expected: T, exchanged: T)(using Field[T, R]): Boolean =
+    @targetName("getSetAE")
+    inline def getAndSetAcquire(where: V, value: V): V =
+      self.getAndSetAcquire(where, value).asInstanceOf[V]
+
+    @targetName("getSetRE")
+    inline def getAndSetRelease(where: C, value: V): V =
+      self.getAndSetRelease(where, value).asInstanceOf[V]
+
+    @targetName("getSetVE")
+    inline def getAndSetVolatile(where: C, value: V): V =
+      self.getAndSet(where, value).asInstanceOf[V]
+
+    @targetName("wCasPE")
+    inline def weakCompareAndSetPlain(where: C, expected: V, exchanged: V): Boolean =
       self.weakCompareAndSetPlain(where, expected, exchanged)
 
-    inline def getAndSetAcquire[R](where: T, value: T)(using Field[T, R]): T =
-      self.getAndSetAcquire(where, value).asInstanceOf[T]
-
-    inline def compareAndExchangeAcquire[R](where: R, expected: T, exchanged: T)(using Field[T, R]): T =
-      self.compareAndExchangeAcquire(where, expected, exchanged).asInstanceOf[T]
-
-    inline def weakCompareAndSetAcquire[R](where: R, expected: T, exchanged: T)(using Field[T, R]): Boolean =
+    @targetName("wCasAE")
+    inline def weakCompareAndSetAcquire(where: C, expected: V, exchanged: V): Boolean =
       self.weakCompareAndSetAcquire(where, expected, exchanged)
 
-    inline def getAndSetRelease[R](where: R, value: T)(using Field[T, R]): T =
-      self.getAndSetRelease(where, value).asInstanceOf[T]
-
-    inline def compareAndExchangeRelease[R](where: R, expected: T, exchanged: T)(using Field[T, R]): T =
-      self.compareAndExchangeRelease(where, expected, exchanged).asInstanceOf[T]
-
-    inline def weakCompareAndSetRelease[R](where: R, expected: T, exchanged: T)(using Field[T, R]): Boolean =
+    @targetName("wCasRE")
+    inline def weakCompareAndSetRelease(where: C, expected: V, exchanged: V): Boolean =
       self.weakCompareAndSetRelease(where, expected, exchanged)
 
-    inline def getAndSetVolatile[R](where: R, value: T)(using Field[T, R]): T =
-      self.getAndSet(where, value).asInstanceOf[T]
+    @targetName("wCasVE")
+    inline def weakCompareAndSetVolatile(where: C, expected: V, exchanged: V): Boolean =
+      self.weakCompareAndSet(where, expected, exchanged)
 
-    inline def compareAndSetVolatile[R](where: R, expected: T, exchanged: T)(using Field[T, R]): Boolean =
+    @targetName("caeAE")
+    inline def compareAndExchangeAcquire(where: C, expected: V, exchanged: V): V =
+      self.compareAndExchangeAcquire(where, expected, exchanged).asInstanceOf[V]
+
+    @targetName("caeRE")
+    inline def compareAndExchangeRelease(where: C, expected: V, exchanged: V): V =
+      self.compareAndExchangeRelease(where, expected, exchanged).asInstanceOf[V]
+
+    @targetName("caeVE")
+    inline def compareAndExchangeVolatile(where: C, expected: V, exchanged: V): V =
+      self.compareAndExchange(where, expected, exchanged).asInstanceOf[V]
+
+    @targetName("casVE")
+    inline def compareAndSetVolatile(where: C, expected: V, exchanged: V): Boolean =
       self.compareAndSet(where, expected, exchanged)
 
-    inline def compareAndExchangeVolatile[R](where: R, expected: T, exchanged: T)(using Field[T, R]): T =
-      self.compareAndExchange(where, expected, exchanged).asInstanceOf[T]
+    @targetName("getSetAI")
+    inline def getAndSetAcquire(value: V)(using where: Magnet[C, V, N]): V =
+      self.getAndSetAcquire(where, value).asInstanceOf[V]
 
-    inline def weakCompareAndSetVolatile[R](where: R, expected: T, exchanged: T)(using Field[T, R]): Boolean =
+    @targetName("getSetRI")
+    inline def getAndSetRelease(value: V)(using where: Magnet[C, V, N]): V =
+      self.getAndSetRelease(where, value).asInstanceOf[V]
+
+    @targetName("getSetVI")
+    inline def getAndSetVolatile(value: V)(using where: Magnet[C, V, N]): V =
+      self.getAndSet(where, value).asInstanceOf[V]
+
+    @targetName("wCasPI")
+    inline def weakCompareAndSetPlain(expected: V, exchanged: V)(using where: Magnet[C, V, N]): Boolean =
+      self.weakCompareAndSetPlain(where, expected, exchanged)
+
+    @targetName("wCasAI")
+    inline def weakCompareAndSetAcquire(expected: V, exchanged: V)(using where: Magnet[C, V, N]): Boolean =
+      self.weakCompareAndSetAcquire(where, expected, exchanged)
+
+    @targetName("wCasRI")
+    inline def weakCompareAndSetRelease(expected: V, exchanged: V)(using where: Magnet[C, V, N]): Boolean =
+      self.weakCompareAndSetRelease(where, expected, exchanged)
+
+    @targetName("wCasVI")
+    inline def weakCompareAndSetVolatile(expected: V, exchanged: V)(using where: Magnet[C, V, N]): Boolean =
       self.weakCompareAndSet(where, expected, exchanged)
+
+    @targetName("caeAI")
+    inline def compareAndExchangeAcquire(expected: V, exchanged: V)(using where: Magnet[C, V, N]): V =
+      self.compareAndExchangeAcquire(where, expected, exchanged).asInstanceOf[V]
+
+    @targetName("caeRI")
+    inline def compareAndExchangeRelease(expected: V, exchanged: V)(using where: Magnet[C, V, N]): V =
+      self.compareAndExchangeRelease(where, expected, exchanged).asInstanceOf[V]
+
+    @targetName("caeVI")
+    inline def compareAndExchangeVolatile(expected: V, exchanged: V)(using where: Magnet[C, V, N]): V =
+      self.compareAndExchange(where, expected, exchanged).asInstanceOf[V]
+
+    @targetName("casVI")
+    inline def compareAndSetVolatile(expected: V, exchanged: V)(using where: Magnet[C, V, N]): Boolean =
+      self.compareAndSet(where, expected, exchanged)
 
   }
 
-  object Magnet:
-
-    extension[T] (self: VarGet[T]) {
-
-      inline def getPlain[R](using from: Field.Magnet[T, R]): T =
-        self.get(from).asInstanceOf[T]
-
-      inline def getOpaque[R](using from: Field.Magnet[T, R]): T =
-        self.getOpaque(from).asInstanceOf[T]
-
-      inline def getAcquire[R](using from: Field.Magnet[T, R]): T =
-        self.getAcquire(from).asInstanceOf[T]
-
-      inline def getVolatile[R](using from: Field.Magnet[T, R]): T =
-        self.getVolatile(from).asInstanceOf[T]
-
-    }
-
-    extension[T] (self: VarSet[T]) {
-
-      inline def setPlain[R](value: T)(using on: Field.Magnet[T, R]): Unit =
-        self.set(on, value)
-
-      inline def setOpaque[R](value: T)(using on: Field.Magnet[T, R]): Unit =
-        self.setOpaque(on, value)
-
-      inline def setRelease[R](value: T)(using on: Field.Magnet[T, R]): Unit =
-        self.setRelease(on, value)
-
-      inline def setVolatile[R](value: T)(using on: Field.Magnet[T, R]): Unit =
-        self.setVolatile(on, value)
-
-    }
-
-    extension[T] (self: VarHandle[T]) {
-
-      inline def weakCompareAndSetPlain[R](expected: T, exchanged: T)(using where: Field.Magnet[T, R]): Boolean =
-        self.weakCompareAndSetPlain(where, expected, exchanged)
-
-      inline def getAndSetAcquire[R](value: T)(using where: Field.Magnet[T, R]): T =
-        self.getAndSetAcquire(where, value).asInstanceOf[T]
-
-      inline def compareAndExchangeAcquire[R](expected: T, exchanged: T)(using where: Field.Magnet[T, R]): T =
-        self.compareAndExchangeAcquire(where, expected, exchanged).asInstanceOf[T]
-
-      inline def weakCompareAndSetAcquire[R](expected: T, exchanged: T)(using where: Field.Magnet[T, R]): Boolean =
-        self.weakCompareAndSetAcquire(where, expected, exchanged)
-
-      inline def getAndSetRelease[R](value: T)(using where: Field.Magnet[T, R]): T =
-        self.getAndSetRelease(where, value).asInstanceOf[T]
-
-      inline def compareAndExchangeRelease[R](expected: T, exchanged: T)(using where: Field.Magnet[T, R]): T =
-        self.compareAndExchangeRelease(where, expected, exchanged).asInstanceOf[T]
-
-      inline def weakCompareAndSetRelease[R](expected: T, exchanged: T)(using where: Field.Magnet[T, R]): Boolean =
-        self.weakCompareAndSetRelease(where, expected, exchanged)
-
-      inline def getAndSetVolatile[R](value: T)(using where: Field.Magnet[T, R]): T =
-        self.getAndSet(where, value).asInstanceOf[T]
-
-      inline def compareAndSetVolatile[R](expected: T, exchanged: T)(using where: Field.Magnet[T, R]): Boolean =
-        self.compareAndSet(where, expected, exchanged)
-
-      inline def compareAndExchangeVolatile[R](expected: T, exchanged: T)(using where: Field.Magnet[T, R]): T =
-        self.compareAndExchange(where, expected, exchanged).asInstanceOf[T]
-
-      inline def weakCompareAndSetVolatile[R](expected: T, exchanged: T)(using where: Field.Magnet[T, R]): Boolean =
-        self.weakCompareAndSet(where, expected, exchanged)
-
-    }
-
-  end Magnet
-
-  object Scoped:
-
-    extension[T] (self: VarGet[T]) {
-
-      inline def getPlain(using from: Field.Scoped[T]): T =
-        self.get(from).asInstanceOf[T]
-
-      inline def getOpaque(using from: Field.Scoped[T]): T =
-        self.getOpaque(from).asInstanceOf[T]
-
-      inline def getAcquire(using from: Field.Scoped[T]): T =
-        self.getAcquire(from).asInstanceOf[T]
-
-      inline def getVolatile(using from: Field.Scoped[T]): T =
-        self.getVolatile(from).asInstanceOf[T]
-
-    }
-
-    extension[T] (self: VarSet[T]) {
-
-      inline def setPlain(value: T)(using on: Field.Scoped[T]): Unit =
-        self.set(on, value)
-
-      inline def setOpaque(value: T)(using on: Field.Scoped[T]): Unit =
-        self.setOpaque(on, value)
-
-      inline def setRelease(value: T)(using on: Field.Scoped[T]): Unit =
-        self.setRelease(on, value)
-
-      inline def setVolatile(value: T)(using on: Field.Scoped[T]): Unit =
-        self.setVolatile(on, value)
-
-    }
-
-    extension[T] (self: VarHandle[T]) {
-
-      inline def weakCompareAndSetPlain(expected: T, exchanged: T)(using where: Field.Scoped[T]): Boolean =
-        self.weakCompareAndSetPlain(where, expected, exchanged)
-
-      inline def getAndSetAcquire(value: T)(using where: Field.Scoped[T]): T =
-        self.getAndSetAcquire(where, value).asInstanceOf[T]
-
-      inline def compareAndExchangeAcquire(expected: T, exchanged: T)(using where: Field.Scoped[T]): T =
-        self.compareAndExchangeAcquire(where, expected, exchanged).asInstanceOf[T]
-
-      inline def weakCompareAndSetAcquire(expected: T, exchanged: T)(using where: Field.Scoped[T]): Boolean =
-        self.weakCompareAndSetAcquire(where, expected, exchanged)
-
-      inline def getAndSetRelease(value: T)(using where: Field.Scoped[T]): T =
-        self.getAndSetRelease(where, value).asInstanceOf[T]
-
-      inline def compareAndExchangeRelease(expected: T, exchanged: T)(using where: Field.Scoped[T]): T =
-        self.compareAndExchangeRelease(where, expected, exchanged).asInstanceOf[T]
-
-      inline def weakCompareAndSetRelease(expected: T, exchanged: T)(using where: Field.Scoped[T]): Boolean =
-        self.weakCompareAndSetRelease(where, expected, exchanged)
-
-      inline def getAndSetVolatile(value: T)(using where: Field.Scoped[T]): T =
-        self.getAndSet(where, value).asInstanceOf[T]
-
-      inline def compareAndSetVolatile(expected: T, exchanged: T)(using where: Field.Scoped[T]): Boolean =
-        self.compareAndSet(where, expected, exchanged)
-
-      inline def compareAndExchangeVolatile(expected: T, exchanged: T)(using where: Field.Scoped[T]): T =
-        self.compareAndExchange(where, expected, exchanged).asInstanceOf[T]
-
-      inline def weakCompareAndSetVolatile(expected: T, exchanged: T)(using where: Field.Scoped[T]): Boolean =
-        self.weakCompareAndSet(where, expected, exchanged)
-
-    }
-
-  end Scoped
-
-  inline private[handles] def unsafeCoerce[T, Handle[x] <: Tag[x]](handle: JVarHandle): Handle[T] = handle.asInstanceOf[Handle[T]]
-
   import scala.reflect.*
 
-  type Apply[T, R] = Field.Aux[T, R, VarHandle] | Field.Aux[T, R, VarGet]
-
-  transparent inline def apply[R: ClassTag, T: ClassTag](inline getter: R => T): Apply[T, R] =
-    Macro.varHandleMacro[R, T](
+  transparent inline def apply[C: ClassTag, V: ClassTag](inline getter: C => V): Any =
+    Macro.vhMacro[C, V](
       getter,
-      classTag[R].runtimeClass.asInstanceOf[Class[R]],
-      classTag[T].runtimeClass.asInstanceOf[Class[T]],
+      classTag[C].runtimeClass.asInstanceOf[Class[C]],
+      classTag[V].runtimeClass.asInstanceOf[Class[V]],
     )
 
 end VarHandle
-export VarHandle.{VarGet, VarSet, VarHandle}
+export VarHandle.{VarGet, VarSet, VarHandle, Magnet}
