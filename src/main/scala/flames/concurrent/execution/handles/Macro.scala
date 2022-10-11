@@ -78,7 +78,7 @@ object Macro:
       vhType.tpe.asType match {
         case '[t] => '{${make}.asInstanceOf[t]}
       }
-    else throw IllegalArgumentException(s"${field.name} is not a field of ${TypeRepr.of[C].show}")
+    else throw IllegalArgumentException(s"$fieldName is not a field of ${TypeRepr.of[C].show}")
   end vhMacroImpl
 /*
   inline def findField[T, R](name: String): Option[Boolean] =

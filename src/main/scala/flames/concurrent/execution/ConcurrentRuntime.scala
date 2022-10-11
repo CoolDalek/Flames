@@ -1,6 +1,7 @@
 package flames.concurrent.execution
 
 import flames.concurrent.execution.Execution.Continuation
+import flames.concurrent.execution.atomic.Atomic
 
 trait ConcurrentRuntime {
   

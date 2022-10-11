@@ -3,13 +3,13 @@ package flames.concurrent.execution.handles
 import java.lang.invoke.{MethodHandles, VarHandle as JVarHandle}
 object Example {
 
-  private val nameHandle: VarGet[Test, String, "Name"] = VarHandle[Test, String](_.Name)
+  private val ageHandle = VarHandle[Test](_.age)
 
   def main(args: Array[String]): Unit =
-    val instance = new Test
-    inline given Magnet[Test, String, "Name"] = nameHandle.magnetize(instance)
-    val result = nameHandle.getPlain
-    println(result)
+    JVarHandle.AccessMode.values()
+      .foreach { mode =>
+        println(s"$mode -> ${ageHandle.asInstanceOf[JVarHandle].isAccessModeSupported(mode)}")
+      }
   end main
 
 }
