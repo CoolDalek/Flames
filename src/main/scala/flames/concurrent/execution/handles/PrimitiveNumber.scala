@@ -9,6 +9,7 @@ object PrimitiveNumber:
   private inline def fractional[T <: AnyVal]: FractionalPrimitive[T] = null.asInstanceOf[FractionalPrimitive[T]]
 
   inline given IntegralPrimitive[Byte] = integral[Byte]
+  inline given IntegralPrimitive[Char] = integral[Char]
   inline given IntegralPrimitive[Short] = integral[Short]
   inline given IntegralPrimitive[Int] = integral[Int]
   inline given IntegralPrimitive[Long] = integral[Long]

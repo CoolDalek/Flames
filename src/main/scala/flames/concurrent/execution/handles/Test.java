@@ -7,7 +7,7 @@ public class Test {
 
     public final String Name = "Fernando";
 
-    public byte age = 16;
+    public char age = '1';
 
     public List<String> friends = new ArrayList<String>();
 

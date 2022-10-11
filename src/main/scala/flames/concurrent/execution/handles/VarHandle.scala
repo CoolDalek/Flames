@@ -210,16 +210,16 @@ object VarHandle:
   import scala.reflect.*
 
   inline def apply[C]: Applicator[C] = new Applicator[C]
-  
+
   class Applicator[C] {
-    
+
     transparent inline def apply[V: ClassTag](inline getter: C => V)(using ClassTag[C]): Any =
       Macro.vhMacro[C, V](
         getter,
         classTag[C].runtimeClass.asInstanceOf[Class[C]],
         classTag[V].runtimeClass.asInstanceOf[Class[V]],
       )
-    
+
   }
 
 end VarHandle
