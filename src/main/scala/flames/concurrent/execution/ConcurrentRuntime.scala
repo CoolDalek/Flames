@@ -1,12 +1,13 @@
 package flames.concurrent.execution
 
-import flames.concurrent.execution.Execution.Continuation
-import flames.concurrent.execution.atomic.Atomic
+import flames.concurrent.execution.atomic.AtomicFactory
 
-trait ConcurrentRuntime {
+trait ConcurrentRuntime:
   
-  def atomic[T](init: T): Atomic[T]
+  def syncRequired(): Boolean
   
-  def execution(continuation: Continuation): Execution
+  def executeNext(using TimeStealer): Unit
+  
+  def atomicFactory: AtomicFactory
 
-}
+end ConcurrentRuntime

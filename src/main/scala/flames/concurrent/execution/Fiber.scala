@@ -2,19 +2,19 @@ package flames.concurrent.execution
 
 import flames.concurrent.exception.*
 import Execution.Continuation
+import flames.concurrent.execution.atomic.AtomicRef
 
-trait Fiber[+T] extends Runnable, Continuation:
+trait Fiber[+T](private val runtime: ConcurrentRuntime):
   import Fiber.*
 
-  protected def runtime: ConcurrentRuntime
-  protected final val execution = runtime.execution(this)
-  protected final val state = runtime.atomic[State](Running)
+  protected val state: AtomicRef[State] =
+    runtime.atomicFactory.ref[State](New)
 
-  execution.continue()
+  def start(): Unit
 
-  def join(callback: Stopped[T] => Unit): Cancellable
+  def join(callback: Result[T] => Unit): Cancellable
 
-  def cancel(): Stopped[T]
+  def join(using TimeStealer): Result[T]
 
   def id: Long
 
@@ -25,11 +25,11 @@ trait Fiber[+T] extends Runnable, Continuation:
 object Fiber:
 
   sealed trait State
+  case object New extends State
   case object Suspended extends State
   case object Running extends State
-  sealed trait Stopped[+T] extends State
-  case object Cancelled extends NoStackTrace("Cancelled"), Stopped[Nothing]
-  case class Failed(reason: Throwable) extends OnlyReasonException(reason), Stopped[Nothing]
-
+  sealed trait Result[+T] extends State
+  case class Done[T](value: T) extends Result[T]
+  case class Failed(reason: Throwable) extends OnlyReasonException(reason), Result[Nothing]
 
 end Fiber

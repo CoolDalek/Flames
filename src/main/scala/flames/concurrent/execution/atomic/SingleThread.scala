@@ -471,5 +471,4 @@ object SingleThread extends AtomicFactory {
     override def getAndAddRelease(value: Double): Double = getAndAdd(value)
   end double
 
-
 }
