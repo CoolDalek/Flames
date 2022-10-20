@@ -1,3 +1,3 @@
 package flames.concurrent.execution.collection
 
-trait MpscQueue[T] extends MessageQueue[T]
+trait SpscQueue[T] extends MessageQueue[T]

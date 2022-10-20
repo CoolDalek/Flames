@@ -4,6 +4,8 @@ import flames.concurrent.exception.*
 import Execution.Continuation
 import flames.concurrent.execution.atomic.AtomicRef
 
+import scala.annotation.tailrec
+
 trait Fiber[+T](private val runtime: ConcurrentRuntime):
   import Fiber.*
 
@@ -14,7 +16,21 @@ trait Fiber[+T](private val runtime: ConcurrentRuntime):
 
   def join(callback: Result[T] => Unit): Cancellable
 
-  def join(using TimeStealer): Result[T]
+  final def join(waitOnStart: Boolean = false)(using time: TimeStealer): Result[T] =
+    var idleIterations = 0
+    @tailrec
+    def loop(): Result[T] =
+      state.get match
+        case New if !waitOnStart => Failed(IllegalStateException("Fiber not started yet"))
+        case result: Result[?] => result.asInstanceOf[Result[T]]
+        case _ =>
+          if(time.steal()) idleIterations = 0
+          else idleIterations += 1
+          if(idleIterations >= time.idleThreshold) Thread.onSpinWait()
+          loop()
+    end loop
+    loop()
+  end join
 
   def id: Long
 
