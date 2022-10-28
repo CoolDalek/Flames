@@ -8,8 +8,8 @@ object Macro:
   
   transparent inline def vhMacro[C, V](
                                         inline getter: C => V,
-                                        ofClass: Class[C],
-                                        selfClass: Class[V],
+                                        inline ofClass: Class[C],
+                                        inline selfClass: Class[V],
                                       ): Any =
     ${vhMacroImpl[C, V]('getter, 'ofClass, 'selfClass)}
 

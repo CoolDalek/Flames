@@ -3,13 +3,16 @@ package flames.concurrent.execution.atomic
 import flames.concurrent.execution.handles.VarHandle
 import flames.concurrent.execution.handles.VarHandle.Magnet
 
+import scala.annotation.static
+
 object MultiThreaded extends AtomicFactory:
 
   override def ref[T <: AnyRef](init: T): AtomicRef[T] = RefImpl[T](init)
-  private final val refVh: VarHandle[RefImpl[AnyRef], AnyRef, "underlying"] =
-    VarHandle[RefImpl[AnyRef]](_.underlying)
-  private class RefImpl[T <: AnyRef](var underlying: T) extends AtomicRef[T]:
-    private inline def vh = refVh.asInstanceOf[VarHandle[RefImpl[T], T, "underlying"]]
+  private object RefImpl:
+    @static private final val refVh: VarHandle[RefImpl[AnyRef], AnyRef, "underlying"] =
+      VarHandle[RefImpl[AnyRef]](_.underlying)
+  private class RefImpl[T <: AnyRef](private var underlying: T) extends AtomicRef[T]:
+    private inline def vh = RefImpl.refVh.asInstanceOf[VarHandle[RefImpl[T], T, "underlying"]]
     private inline given Magnet[RefImpl[T], T, "underlying"] = vh.magnetize(this)
     override def getAndSetAcquire(value: T): T = vh.getAndSetAcquire(value)
     override def getAndSetRelease(value: T): T = vh.getAndSetRelease(value)
@@ -41,9 +44,11 @@ object MultiThreaded extends AtomicFactory:
   end RefImpl
 
   override def boolean(init: Boolean): AtomicBool = BoolImpl(init)
-  private final val boolVh: VarHandle[BoolImpl, Boolean, "underlying"] =
-    VarHandle[BoolImpl](_.underlying)
-  private class BoolImpl(var underlying: Boolean) extends AtomicBool:
+  private object BoolImpl:
+    @static private final val boolVh: VarHandle[BoolImpl, Boolean, "underlying"] =
+      VarHandle[BoolImpl](_.underlying)
+  private class BoolImpl(private var underlying: Boolean) extends AtomicBool:
+    import BoolImpl.*
     private inline given Magnet[BoolImpl, Boolean, "underlying"] = boolVh.magnetize(this)
     override def getAndSetAcquire(value: Boolean): Boolean = boolVh.getAndSetAcquire(value)
     override def getAndSetRelease(value: Boolean): Boolean = boolVh.getAndSetRelease(value)
@@ -75,9 +80,11 @@ object MultiThreaded extends AtomicFactory:
   end BoolImpl
 
   override def byte(init: Byte): AtomicByte = ByteImpl(init)
-  private final val byteVh: VarHandle[ByteImpl, Byte, "underlying"] =
-    VarHandle[ByteImpl](_.underlying)
-  private class ByteImpl(var underlying: Byte) extends AtomicByte:
+  private object ByteImpl:
+    @static private final val byteVh: VarHandle[ByteImpl, Byte, "underlying"] =
+      VarHandle[ByteImpl](_.underlying)
+  private class ByteImpl(private var underlying: Byte) extends AtomicByte:
+    import ByteImpl.*
     private inline given Magnet[ByteImpl, Byte, "underlying"] = byteVh.magnetize(this)
     override def getAndSetAcquire(value: Byte): Byte = byteVh.getAndSetAcquire(value)
     override def getAndSetRelease(value: Byte): Byte = byteVh.getAndSetRelease(value)
@@ -121,9 +128,11 @@ object MultiThreaded extends AtomicFactory:
   end ByteImpl
 
   override def char(init: Char): AtomicChar = CharImpl(init)
-  private final val charVh: VarHandle[CharImpl, Char, "underlying"] =
-    VarHandle[CharImpl](_.underlying)
-  private class CharImpl(var underlying: Char) extends AtomicChar:
+  private object CharImpl:
+    @static private final val charVh: VarHandle[CharImpl, Char, "underlying"] =
+      VarHandle[CharImpl](_.underlying)
+  private class CharImpl(private var underlying: Char) extends AtomicChar:
+    import CharImpl.*
     private inline given Magnet[CharImpl, Char, "underlying"] = charVh.magnetize(this)
     override def getAndSetAcquire(value: Char): Char = charVh.getAndSetAcquire(value)
     override def getAndSetRelease(value: Char): Char = charVh.getAndSetRelease(value)
@@ -167,9 +176,11 @@ object MultiThreaded extends AtomicFactory:
   end CharImpl
 
   override def short(init: Short): AtomicShort = ShortImpl(init)
-  private final val shortVh: VarHandle[ShortImpl, Short, "underlying"] =
-    VarHandle[ShortImpl](_.underlying)
-  private class ShortImpl(var underlying: Short) extends AtomicShort:
+  private object ShortImpl:
+    @static private final val shortVh: VarHandle[ShortImpl, Short, "underlying"] =
+      VarHandle[ShortImpl](_.underlying)
+  private class ShortImpl(private var underlying: Short) extends AtomicShort:
+    import ShortImpl.*
     private inline given Magnet[ShortImpl, Short, "underlying"] = shortVh.magnetize(this)
     override def getAndSetAcquire(value: Short): Short = shortVh.getAndSetAcquire(value)
     override def getAndSetRelease(value: Short): Short = shortVh.getAndSetRelease(value)
@@ -213,9 +224,11 @@ object MultiThreaded extends AtomicFactory:
   end ShortImpl
 
   override def int(init: Int): AtomicInt = IntImpl(init)
-  private final val intVh: VarHandle[IntImpl, Int, "underlying"] =
-    VarHandle[IntImpl](_.underlying)
-  private class IntImpl(var underlying: Int) extends AtomicInt:
+  private object IntImpl:
+    @static private final val intVh: VarHandle[IntImpl, Int, "underlying"] =
+      VarHandle[IntImpl](_.underlying)
+  private class IntImpl(private var underlying: Int) extends AtomicInt:
+    import IntImpl.*
     private inline given Magnet[IntImpl, Int, "underlying"] = intVh.magnetize(this)
     override def getAndSetAcquire(value: Int): Int = intVh.getAndSetAcquire(value)
     override def getAndSetRelease(value: Int): Int = intVh.getAndSetRelease(value)
@@ -259,9 +272,11 @@ object MultiThreaded extends AtomicFactory:
   end IntImpl
 
   override def long(init: Long): AtomicLong = LongImpl(init)
-  private final val longVh: VarHandle[LongImpl, Long, "underlying"] =
-    VarHandle[LongImpl](_.underlying)
-  private class LongImpl(var underlying: Long) extends AtomicLong:
+  private object LongImpl:
+    @static private final val longVh: VarHandle[LongImpl, Long, "underlying"] =
+      VarHandle[LongImpl](_.underlying)
+  private class LongImpl(private var underlying: Long) extends AtomicLong:
+    import LongImpl.*
     private inline given Magnet[LongImpl, Long, "underlying"] = longVh.magnetize(this)
     override def getAndSetAcquire(value: Long): Long = longVh.getAndSetAcquire(value)
     override def getAndSetRelease(value: Long): Long = longVh.getAndSetRelease(value)
@@ -305,9 +320,11 @@ object MultiThreaded extends AtomicFactory:
   end LongImpl
 
   override def float(init: Float): AtomicFloat = FloatImpl(init)
-  private final val floatVh: VarHandle[FloatImpl, Float, "underlying"] =
-    VarHandle[FloatImpl](_.underlying)
-  private class FloatImpl(var underlying: Float) extends AtomicFloat:
+  private object FloatImpl:
+    @static private final val floatVh: VarHandle[FloatImpl, Float, "underlying"] =
+      VarHandle[FloatImpl](_.underlying)
+  private class FloatImpl(private var underlying: Float) extends AtomicFloat:
+    import FloatImpl.*
     private inline given Magnet[FloatImpl, Float, "underlying"] = floatVh.magnetize(this)
     override def getAndSetAcquire(value: Float): Float = floatVh.getAndSetAcquire(value)
     override def getAndSetRelease(value: Float): Float = floatVh.getAndSetRelease(value)
@@ -342,9 +359,11 @@ object MultiThreaded extends AtomicFactory:
   end FloatImpl
 
   override def double(init: Double): AtomicDouble = DoubleImpl(init)
-  private final val doubleVh: VarHandle[DoubleImpl, Double, "underlying"] =
-    VarHandle[DoubleImpl](_.underlying)
-  private class DoubleImpl(var underlying: Double) extends AtomicDouble:
+  private object DoubleImpl:
+    @static private final val doubleVh: VarHandle[DoubleImpl, Double, "underlying"] =
+      VarHandle[DoubleImpl](_.underlying)
+  private class DoubleImpl(private var underlying: Double) extends AtomicDouble:
+    import DoubleImpl.*
     private inline given Magnet[DoubleImpl, Double, "underlying"] = doubleVh.magnetize(this)
     override def getAndSetAcquire(value: Double): Double = doubleVh.getAndSetAcquire(value)
     override def getAndSetRelease(value: Double): Double = doubleVh.getAndSetRelease(value)

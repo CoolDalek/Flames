@@ -34,7 +34,7 @@ trait Fiber[+T](private val runtime: ConcurrentRuntime):
 
   def id: Long
 
-  def parent: Fiber[Nothing] | Null
+  protected[this] def parent: Fiber[Nothing] | Null
 
   def childs: Set[Fiber[Nothing]]
 

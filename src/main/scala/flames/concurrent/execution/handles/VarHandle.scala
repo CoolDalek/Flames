@@ -327,7 +327,7 @@ object VarHandle:
 
   class Applicator[C] {
 
-    transparent inline def apply[V: ClassTag](inline getter: C => V)(using ClassTag[C]): Any =
+    transparent inline def apply[V](inline getter: C => V)(using inline c: ClassTag[C], inline v: ClassTag[V]): Any =
       Macro.vhMacro[C, V](
         getter,
         classTag[C].runtimeClass.asInstanceOf[Class[C]],
