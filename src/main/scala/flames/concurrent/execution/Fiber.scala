@@ -16,12 +16,12 @@ trait Fiber[+T](private val runtime: ConcurrentRuntime):
 
   def join(callback: Result[T] => Unit): Cancellable
 
-  final def join(waitOnStart: Boolean = false)(using time: TimeStealer): Result[T] =
+  final def join(waitForStart: Boolean = false)(using time: TimeStealer): Result[T] =
     var idleIterations = 0
     @tailrec
     def loop(): Result[T] =
       state.get match
-        case New if !waitOnStart => Failed(IllegalStateException("Fiber not started yet"))
+        case New if !waitForStart => Failed(IllegalStateException("Fiber not started yet"))
         case result: Result[?] => result.asInstanceOf[Result[T]]
         case _ =>
           if(time.steal()) idleIterations = 0
@@ -34,7 +34,7 @@ trait Fiber[+T](private val runtime: ConcurrentRuntime):
 
   def id: Long
 
-  protected[this] def parent: Fiber[Nothing] | Null
+  def parent: Fiber[Nothing] | Null
 
   def childs: Set[Fiber[Nothing]]
 
@@ -47,5 +47,8 @@ object Fiber:
   sealed trait Result[+T] extends State
   case class Done[T](value: T) extends Result[T]
   case class Failed(reason: Throwable) extends OnlyReasonException(reason), Result[Nothing]
+
+  val thread = Thread.currentThread()
+  thread.isInterrupted
 
 end Fiber

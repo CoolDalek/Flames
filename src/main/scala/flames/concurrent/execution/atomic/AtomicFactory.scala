@@ -20,6 +20,6 @@ trait AtomicFactory {
 
   def double(init: Double): AtomicDouble
   
-  inline def make[T](init: T)(using ev: AtomicMake[T]): ev.Result = ev.make(init, this)
+  transparent inline def make[T](init: T)(using ev: AtomicMake[T]): ev.Result = ev.make(init, this)
 
 }

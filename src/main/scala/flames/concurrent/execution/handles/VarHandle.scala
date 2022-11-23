@@ -325,13 +325,20 @@ object VarHandle:
 
   inline def apply[C]: Applicator[C] = new Applicator[C]
 
+  transparent inline def make[C, V](inline getter: C => V, inline cClass: Class[C], inline vClass: Class[V]): Any =
+    Macro.vhMacro[C, V](
+      getter,
+      cClass,
+      vClass,
+    )
+
   class Applicator[C] {
 
     transparent inline def apply[V](inline getter: C => V)(using inline c: ClassTag[C], inline v: ClassTag[V]): Any =
       Macro.vhMacro[C, V](
         getter,
-        classTag[C].runtimeClass.asInstanceOf[Class[C]],
-        classTag[V].runtimeClass.asInstanceOf[Class[V]],
+        c.runtimeClass.asInstanceOf[Class[C]],
+        v.runtimeClass.asInstanceOf[Class[V]],
       )
 
   }
