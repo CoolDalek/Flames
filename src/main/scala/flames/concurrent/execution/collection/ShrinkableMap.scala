@@ -3,31 +3,41 @@ package flames.concurrent.execution.collection
 import scala.annotation.tailrec
 import flames.concurrent.utils.*
 
+
 trait ShrinkableMap[K, V]:
-  def contains(name: K)(using Empty[V]): Boolean
-  def get(name: K)(using Empty[V]): Maybe[V]
-  def update(name: K, index: V)(using Empty[V]): Maybe[V]
-  def remove(name: K)(using Empty[V]): Maybe[V]
+
+  def contains(key: K)(using Empty[V]): Boolean
+
+  def get(key: K)(using Empty[V]): Maybe[V]
+
+  def update(key: K, value: V)(using Empty[V]): Maybe[V]
+
+  def remove(key: K)(using Empty[V]): Maybe[V]
+
+  def size: Int
+
+  def foreach(f: (K, V) => Unit): Unit
 
 object ShrinkableMap:
 
-  /*
-  * Implementation based on the scala.collection.Vector internal structure.
-  * Its basically a tree where each node can be either a branch or a leaf.
-  * Branch nodes contains an array which can be filled with both branches and leaf nodes.
-  * Leaf nodes contains an linked-list of key-value pairs with collided hashes.
-  * If branch contains less than one element it thies to shrink
-  * - it moves it's only element to parent branch and becomes garbage.
-  * If new element tries to take place of other element in the branch and their hashes are different
-  * - new branch is being created and both elements are being moved here; new branch are placed in a conflicting place.
-  * If new element tries to take place of other element in the branch and their hashes are the same
-  * - it being added to the end of linked list.
-  * All operations traverse tree without stack-consuming recursion.
-  * It's can be seen as obsolete since recursion depth will never be nearly enough to cause stack overflow.
-  * But it's a conscious design choice made to allow using this collection
-  * with stack-consuming async-await implementations.
-  * */
+/**
+* Implementation based on the scala.collection.Vector internal structure.
+* It's basically a tree where each node can be either a branch or a leaf.
+* Branch nodes contain an array which can be filled with both branches and leaf nodes.
+* Leaf nodes contain a linked list of key-value pairs with collided hashes.
+* If a branch contains less than one element it tries to shrink -
+* it moves its only element to the parent branch and becomes garbage.
+* If a new element tries to take place of another element in the branch and their hashes are different -
+* a new branch is created and both elements are being moved here; a new branch is placed in a conflicting place.
+* If a new element tries to take place of another element in the branch and their hashes are the same,
+* it is added to the end of the Leaf's linked list.
+* All operations traverse the tree without stack-consuming recursion.
+* It can be seen as obsolete since recursion depth will never be nearly enough to cause a stack overflow.
+* But it's a conscious design choice made to allow using this collection with stack-consuming async-await implementations.
+*/
   private class Impl[K, V](branchSize: Int) extends ShrinkableMap[K, V]:
+
+    private var length = 0
 
     private def evalHash(key: K): Int =
       val original = key.##
@@ -47,6 +57,7 @@ object ShrinkableMap:
       def insert(key: K, value: V, position: Int): Unit =
         childs(position) = Leaf(key, value)
         load += 1
+        length += 1
 
     end Branch
 
@@ -102,7 +113,7 @@ object ShrinkableMap:
             if child eq null then
               branch.insert(key, value, pos)
               Maybe.absent[V]
-            else loop(branch, current, pos)
+            else loop(branch, child, pos)
 
           case leaf: Leaf =>
             val self = evalHash(leaf.key)
@@ -157,8 +168,10 @@ object ShrinkableMap:
               parent.childs(currPos) = next
               if next eq null then
                 parent.load -= 1
-                if parent.load <= 1 && (grandparent ne null)
-                then grandparent.childs(prevPos) = parent.childs(currPos)
+                length -= 1
+                if parent.load <= 1 && (grandparent ne null) then
+                  grandparent.childs(prevPos) = parent.childs(currPos)
+                  parent.childs(currPos) = null // a little help to GC
               end if
               Maybe.absent[V]
 
@@ -187,6 +200,35 @@ object ShrinkableMap:
         0,
       )
     end remove
+
+    override def size: Int = length
+
+    override def foreach(f: (K, V) => Unit): Unit =
+      import scala.collection.mutable
+      val branches = mutable.Stack.empty[Branch]
+      branches.push(root)
+
+      while branches.nonEmpty do
+        val branch = branches.pop()
+        var i = 0
+        while i < branch.childs.length do
+          val child = branch.childs(i)
+          if child ne null then
+            child match
+              case subBranch: Branch =>
+                branches.push(subBranch)
+              case leaf: Leaf =>
+                @tailrec
+                def traverse(current: Leaf): Unit =
+                  f(current.key, current.value)
+                  if current.next ne null
+                  then traverse(current.next)
+                end traverse
+                traverse(leaf)
+          end if
+          i += 1
+      end while
+    end foreach
 
   end Impl
 

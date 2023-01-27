@@ -6,9 +6,12 @@ lazy val root = (project in file("."))
   .settings(
     name := "Flames",
     libraryDependencies ++= Seq(
-      "org.jctools" % "jctools-core" % "3.3.0",
-      "org.typelevel" %% "cats-effect" % "3.3.14",
-      "dev.zio" %% "zio" % "2.0.2",
+      "org.jctools" % "jctools-core" % "4.0.1",
+      "org.typelevel" %% "cats-effect" % "3.4.5",
+      "dev.zio" %% "zio" % "2.0.6",
+      "org.scalatest" %% "scalatest" % "3.2.15" % Test,
+      "org.scalatestplus" %% "scalacheck-1-17" % "3.2.15.0" % Test,
+      "org.scalacheck" %% "scalacheck" % "1.17.0" % Test,
     ),
     scalacOptions ++= Seq(
       "-explain",
