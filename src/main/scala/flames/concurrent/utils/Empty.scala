@@ -1,25 +1,17 @@
 package flames.concurrent.utils
 
 trait Empty[T]:
-
+  def isEmpty(value: T): Boolean
+  def nonEmpty(value: T): Boolean
   def empty: T
 
-  extension (self: T)
+object Empty:
+  inline def apply[T: Empty]: Empty[T] = summon[Empty[T]]
 
-    def isEmpty: Boolean = empty == self
-
-    def nonEmpty: Boolean = empty != self
-
-  end extension
-  
-object Empty extends Summoner[Empty]:
-  
-  inline given [T <: AnyRef]: Empty[T] with
-    inline override def empty: T = null.asInstanceOf[T]
-    extension (self: T)
-      inline override def isEmpty: Boolean = self eq null
-      inline override def nonEmpty: Boolean = self ne null
-    end extension
+  given [T >: Null <: AnyRef]: Empty[T] with
+    override def isEmpty(value: T): Boolean = value eq null
+    override def nonEmpty(value: T): Boolean = value ne null
+    override def empty: T = null.asInstanceOf[T]
   end given
-  
+
 end Empty

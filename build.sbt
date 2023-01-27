@@ -1,6 +1,6 @@
 ThisBuild / version := "0.1.0-SNAPSHOT"
 
-ThisBuild / scalaVersion := "3.2.1"
+ThisBuild / scalaVersion := "3.2.2"
 
 lazy val root = (project in file("."))
   .settings(
@@ -9,5 +9,11 @@ lazy val root = (project in file("."))
       "org.jctools" % "jctools-core" % "3.3.0",
       "org.typelevel" %% "cats-effect" % "3.3.14",
       "dev.zio" %% "zio" % "2.0.2",
-    )
+    ),
+    scalacOptions ++= Seq(
+      "-explain",
+      "-explain-types",
+      "-deprecation",
+      "-source:future",
+    ),
   )
