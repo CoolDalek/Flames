@@ -10,12 +10,13 @@ trait Queue[C[_]] {
     def poll(): T | Null
 
     def push(elem: T): Boolean
-    
+
     def isEmpty: Boolean
 
   }
 
 }
+
 object Queue {
 
   given [C[X] <: JQueue[X]]: Queue[C] with
@@ -28,8 +29,11 @@ object Queue {
   given Queue[SQueue] with
     extension [T](self: SQueue[T])
       def poll(): T | Null = self.dequeue()
-      def push(elem: T): Boolean = {self.enqueue(elem); true}
+      def push(elem: T): Boolean = {
+        self.enqueue(elem);
+        true
+      }
       def isEmpty: Boolean = self.isEmpty
   end given
-  
+
 }

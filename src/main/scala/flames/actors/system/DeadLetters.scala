@@ -1,47 +1,58 @@
 package flames.actors.system
 
-import flames.actors.ActorEnv.ActorEnv
-import flames.actors.{Actor, ActorRef, ActorSystem}
 import flames.actors.message.DeliveryFailure
 import flames.actors.path.ActorPath
+import flames.actors.{Actor, ActorEnv, ActorRef, ActorSystem}
 
 import java.util.UUID
 import scala.util.control.NonFatal
 
-trait DeadLetter {
-  
+trait DeadLetters {
+
   def publish[T](message: T, target: ActorPath, reason: DeliveryFailure): Unit
 
-  def subscribe(handler: PartialFunction[DeadLetterEvent, Unit]): Cancellable
+  def subscribe(handler: PartialFunction[DeadLetters.Event, Unit]): Cancellable
 
 }
-object DeadLetter {
+object DeadLetters {
 
-  type Factory = ActorSystem => DeadLetter
+  trait Event {
 
-  case class Subscription(handler: PartialFunction[DeadLetterEvent, Unit], cancel: Cancellable.Signal)
+    def message: Any
+
+    def target: ActorPath
+
+    def reason: DeliveryFailure
+
+  }
+
+  type Factory = ActorSystem => DeadLetters
+
+  case class Subscription(handler: PartialFunction[Event, Unit], cancel: Cancellable.Signal)
+
   enum Protocol {
-    case Dead(message: Any, target: ActorPath, reason: DeliveryFailure) extends Protocol with DeadLetterEvent
+    case Dead(message: Any, target: ActorPath, reason: DeliveryFailure) extends Protocol with Event
     case Subscribe(token: String, sub: Subscription)
     case Unsubscribe(token: String)
   }
 
   import Protocol.*
-  class Default(using ActorEnv[Protocol]) extends DeadLetter with Actor[Protocol]("dead-letter"):
+
+  class Default(using ActorEnv[Protocol]) extends DeadLetters with Actor[Protocol]("dead-letter"):
     override def publish[T](message: T, target: ActorPath, reason: DeliveryFailure): Unit =
       self.tell(
-        Dead(message, target, reason)
+        Dead(message, target, reason),
       )
 
-    override def subscribe(handler: PartialFunction[DeadLetterEvent, Unit]): Cancellable =
+    override def subscribe(handler: PartialFunction[Event, Unit]): Cancellable =
       val token = UUID.randomUUID().toString
       val signal = Cancellable.signal {
         self.tell(
-          Unsubscribe(token)
+          Unsubscribe(token),
         )
       }
       self.tell(
-        Subscribe(token, Subscription(handler, signal))
+        Subscribe(token, Subscription(handler, signal)),
       )
       signal
     end subscribe
@@ -67,7 +78,7 @@ object DeadLetter {
           subscriptions.remove(token)
             .foreach(_.cancel.cancelled())
           same
-      }.ignore
+      }.ignoreSystem
 
   end Default
 

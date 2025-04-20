@@ -1,12 +1,12 @@
 package flames.actors.path
 
 import flames.actors.*
-import flames.actors.message.*
-import SystemMessage.*
-import Ack.*
 import flames.actors.behavior.Behavior
+import flames.actors.message.*
+import flames.actors.message.Ack.*
+import flames.actors.message.SystemMessage.*
 import flames.actors.path.Selector.Protocol
-import Protocol.*
+import flames.actors.path.Selector.Protocol.*
 import flames.actors.pattern.Wait
 import flames.actors.ref.*
 import flames.actors.remote.Client
@@ -14,78 +14,45 @@ import flames.actors.remote.Client
 import scala.collection.mutable
 import scala.reflect.{ClassTag, classTag}
 
-type SelectorRef = ActorRef[Protocol]
+type SelectorRef = ActorRef[Selector.Protocol]
 
 trait Selector {
 
-  def select[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])
-                                     (using Timeout): F[SelectionResult[T]]
+  def select[F[_]: Wait, T: ClassTag](
+    query: Vector[ActorSelector],
+  )(using Timeout): F[SelectionResult[T]]
 
-  private[actors] def remoteRequest[F[_]: Wait](query: Vector[ActorSelector])
-                                               (using Timeout): F[SelectionResult[Nothing]]
+  def selectFrom[F[_]: Wait, T: ClassTag](
+    start: ErasedRef,
+    query: Vector[ActorSelector],
+  )(using Timeout): F[SelectionResult[T]]
 
-  def selectLocal[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])
-                                          (using Timeout): F[SelectionResult[T]]
-
-  def selectRemote[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])
-                                           (using Timeout): F[Ack[SelectionResult[T]]]
-
-  def selectFrom[F[_]: Wait, T: ClassTag](start: ErasedRef, query: Vector[ActorSelector])
-                                         (using Timeout): F[SelectionResult[T]]
+  def selectRemote[F[_]: Wait, T: ClassTag](
+    host: String,
+    port: Int,
+    query: Vector[ActorSelector],
+  )(using Timeout): F[Ack[SelectionResult[T]]]
 
 }
 object Selector {
 
-  def apply(system: ActorSystem, client: Client): Selector = new Impl(system, client)
+  enum Protocol {
+    case Reroute(from: ActorPath, to: Set[ErasedRef])
+    case Result(from: ActorPath, set: Set[ErasedRef])
+    case NoResults(from: ActorPath)
+  }
 
-  private class Impl(system: ActorSystem, client: Client) extends Selector:
+  def apply(system: ActorSystem, client: Client): Selector = new:
 
-    private def localErased[F[_]: Wait](query: Vector[ActorSelector], startWith: Int, root: ErasedRef)
-                                       (using timeout: Timeout): F[SelectionResult[Nothing]] =
-      Wait[F].async[SelectionResult[Nothing]] { callback =>
-        system.spawnFire {
-          new Combiner(
-            query,
-            callback,
-            timeout,
-            startWith,
-            root,
-          )
-        }
-      }
-    end localErased
-
-    def remoteRequest[F[_]: Wait](query: Vector[ActorSelector])(using Timeout): F[SelectionResult[Nothing]] =
-      if(query.head.matches(system.path))
-        if(query.length > 1) localErased(query, 1, system.root)
-        else Wait[F].lift(SelectionResult.FoundOne(system.root))
-      else noResults[F, Nothing]
-    end remoteRequest
-
-    inline private def noResults[F[_]: Wait, T]: F[SelectionResult[T]] = Wait[F].lift(SelectionResult.NotFound)
-    inline private def noResultsAck[F[_]: Wait, T]: F[Ack[SelectionResult[T]]] = Wait[F].lift(Ack.Delivered(SelectionResult.NotFound))
-
-    private def selectLocalImpl[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector], startWith: Int, root: ErasedRef)
-                                                        (using Timeout): F[SelectionResult[T]] =
-      localErased[F](query, startWith, root).map(filterTypes[T])
-    end selectLocalImpl
-
-    private def selectRemoteImpl[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector],
-                                                          credentials: ActorSelector.Remote)
-                                                         (using Timeout): F[Ack[SelectionResult[T]]] =
-      import Ack.*
-      client.select(query, credentials).map {
-        case Delivered(result) => Delivered(filterTypes[T](result))
-        case failure => failure.asInstanceOf[Ack[SelectionResult[T]]]
-      }
-    end selectRemoteImpl
+    inline private def noResults[F[_]: Wait, T]: F[SelectionResult[T]] =
+      Wait[F].pure(SelectionResult.NotFound)
 
     private def filterTypes[T: ClassTag](result: SelectionResult[Nothing]): SelectionResult[T] =
       import SelectionResult.*
 
       def checkTypes(ref: ActorRef[Nothing]): Boolean =
         ref.tag.isAssignableFrom(
-          classTag[T].runtimeClass
+          classTag[T].runtimeClass,
         )
 
       def cast(ref: ActorRef[Nothing]): ActorRef[T] = ref.asInstanceOf[ActorRef[T]]
@@ -99,98 +66,101 @@ object Selector {
           val filtered = set.collect {
             case ref if checkTypes(ref) => cast(ref)
           }
-          SelectionResults.make(filtered)
+          SelectionResult.make(filtered)
       }
     end filterTypes
 
-    inline private def nonEmpty[F[_]: Wait, T](query: Vector[ActorSelector])
-                                              (inline select: => F[SelectionResult[T]]): F[SelectionResult[T]] =
-      if(query.length > 1)
+    private def selectLocalImpl[F[_]: Wait, T: ClassTag](
+      query: Vector[ActorSelector],
+      startWith: Int,
+      root: ErasedRef,
+    )(using timeout: Timeout): F[SelectionResult[T]] =
+      Wait[F].async[SelectionResult[Nothing]] { callback =>
+        system.spawnForget {
+          new Combiner(
+            query,
+            callback,
+            timeout,
+            startWith,
+            root,
+          )
+        }
+      }.map(filterTypes[T])
+
+    inline private def nonEmpty[F[_]: Wait, T](
+      query: Vector[ActorSelector],
+    )(inline select: => F[SelectionResult[T]]): F[SelectionResult[T]] =
+      if (query.length > 1)
         select
       else noResults[F, T]
     end nonEmpty
 
-    inline private def nonEmptyAck[F[_]: Wait, T](query: Vector[ActorSelector])
-                                                 (inline select: => F[Ack[SelectionResult[T]]]): F[Ack[SelectionResult[T]]] =
-      if(query.length > 1)
-        select
-      else noResultsAck[F, T]
-    end nonEmptyAck
-
-    override def select[F[_] : Wait, T: ClassTag](query: Vector[ActorSelector])
-                                                 (using Timeout): F[Ack[SelectionResult[T]]] =
-
-      def localOr(orElse: => F[Ack[SelectionResult[T]]]): F[Ack[SelectionResult[T]]] =
+    override def select[F[_]: Wait, T: ClassTag](
+      query: Vector[ActorSelector],
+    )(using Timeout): F[SelectionResult[T]] =
+      nonEmpty[F, T](query) {
+        import ActorSelector.*
         if (query(1).matches(system.path))
-          val local = if (query.length > 1)
+          if (query.length > 1)
             selectLocalImpl[F, T](query, 1, system.root)
-          else Wait[F].lift {
+          else Wait[F].pure {
             filterTypes[T](SelectionResult.FoundOne(system.root))
           }
-          local.map(Ack.Delivered.apply)
-        else orElse
-      end localOr
-
-      nonEmptyAck[F, T](query) {
-        import ActorSelector.*
-        query(1) match
-          case _: Simple =>
-            system.path match
-              case _: (ActorPath.Local | ActorPath.Child) =>
-                localOr(noResultsAck[F, T])
-              case _: ActorPath.Remote => noResultsAck[F, T]
-          case credentials: Remote =>
-            system.path match
-              case _: ActorPath.Remote =>
-                localOr {
-                  selectRemoteImpl[F, T](query, credentials)
-                }
-              case _: (ActorPath.Local | ActorPath.Child) => noResultsAck[F, T]
+        else noResults[F, T]
       }
     end select
 
-    override def selectLocal[F[_] : Wait, T: ClassTag](query: Vector[ActorSelector])(using timeout: Timeout): F[SelectionResult[T]] =
-      nonEmpty[F, T](query) {
-        import ActorSelector.*
+    override def selectFrom[F[_]: Wait, T: ClassTag](
+      start: ErasedRef,
+      query: Vector[ActorSelector],
+    )(using Timeout): F[SelectionResult[T]] =
+      nonEmpty(query) {
+        selectLocalImpl(query, 0, start)
+      }
 
-        def select: F[SelectionResult[T]] =
-          if (query.length > 1)
-            selectLocalImpl(query, 1, system.root)
-          else noResults[F, T]
+    override def selectRemote[F[_]: Wait, T: ClassTag](
+      host: String,
+      port: Int,
+      query: Vector[ActorSelector],
+    )(using Timeout): F[Ack[SelectionResult[T]]] = {
+      def noResultsAck: F[Ack[SelectionResult[T]]] =
+        noResults.map(Ack.Delivered.apply)
 
-        query.head match {
-          case head: Simple =>
-            if(head.matches(system.path))
-              select
-            else selectLocalImpl(query, 0, system.root)
-          case head: Remote =>
-            if (head.matches(system.path))
-              select
-            else noResults[F, T]
+      def callRemote(root: String) =
+        client.select(
+          host,
+          port,
+          root,
+          query,
+        ).map { ack =>
+          ack.map(filterTypes[T])
         }
+
+      system.path match {
+        case ActorPath.Remote(_, _, localHost, localPort) if host == localHost && port == localPort =>
+          query.headOption match {
+            case Some(local) if local.matches(system.path) =>
+              selectLocalImpl(query, 1, system.root).map(Ack.Delivered.apply)
+            case Some(remote) =>
+              callRemote(remote.name)
+            case None => noResultsAck
+          }
+        case _ =>
+          if query.isEmpty
+          then noResultsAck
+          else callRemote(query(1).name)
       }
-    end selectLocal
+    }
 
-    override def selectRemote[F[_]: Wait, T: ClassTag](query: Vector[ActorSelector])(using Timeout): F[Ack[SelectionResult[T]]] =
-      nonEmptyAck[F, T](query) {
-        import ActorSelector.*
-        query.head match
-          case _: Simple =>
-            noResultsAck[F, T]
-          case head: Remote =>
-            selectRemoteImpl(query, head)
-      }
-    end selectRemote
-
-    override def selectFrom[F[_] : Wait, T: ClassTag](start: ErasedRef, query: Vector[ActorSelector])(using Timeout): F[SelectionResult[T]] = ???
-
-    class Combiner(
-                    query: Vector[ActorSelector],
-                    complete: SelectionResult[Nothing] => Unit,
-                    timeout: Timeout,
-                    startWith: Int,
-                    root: ErasedRef,
-                  )(using ActorEnv[Protocol]) extends Actor[Protocol]("selector-combiner"):
+    private case object NoTimeLeft
+    private type Protocol = NoTimeLeft.type | Selector.Protocol
+    private class Combiner(
+      query: Vector[ActorSelector],
+      complete: SelectionResult[Nothing] => Unit,
+      timeout: Timeout,
+      startWith: Int,
+      root: ErasedRef,
+    )(using ActorEnv[Protocol]) extends Actor[Protocol]("selector-combiner"):
 
       private val builder = Set.newBuilder[ErasedRef]
       private val waitOn = mutable.Map.empty[ActorPath, ErasedRef]
@@ -201,7 +171,7 @@ object Selector {
       private def tryComplete(): Behavior[Protocol] =
         if (waitOn.isEmpty)
           val set = builder.result()
-          val result = SelectionResults.make(set)
+          val result = SelectionResult.make(set)
           complete(result)
           stop
         else same
@@ -210,9 +180,9 @@ object Selector {
       def act(): Behavior[Protocol] =
         scheduleToSelf(timeout.asDuration, NoTimeLeft)
         val request = SystemMessage.FindChild(query, startWith, self)
-        root.internalTell(request)
-        watch(root)
         waitOn.update(root.path, root)
+        watch(root)
+        root.internalTell(request)
         receive {
           case Result(from, set) =>
             dontWait(from)
@@ -221,8 +191,8 @@ object Selector {
           case Reroute(from, to) =>
             dontWait(from)
             to.foreach { ref =>
-              watch(ref)
               waitOn.update(ref.path, ref)
+              watch(ref)
             }
             same
           case NoResults(from) =>
@@ -245,13 +215,6 @@ object Selector {
 
     end Combiner
 
-  end Impl
-
-  enum Protocol {
-    case Reroute(from: ActorPath, to: Set[ErasedRef])
-    case Result(from: ActorPath, set: Set[ErasedRef])
-    case NoResults(from: ActorPath)
-    case NoTimeLeft
-  }
+  end apply
 
 }

@@ -1,51 +1,36 @@
 package flames.actors.system
 
-import flames.actors.ActorEnv
 import flames.actors.behavior.Behavior
-import flames.actors.message.DeliveryFailure
 import flames.actors.system.Root.Protocol
-import flames.actors.{Actor, StateAccess}
+import flames.actors.{Actor, ActorEnv, StateAccess}
 
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.ClassTag
 
 class Root(name: String)(using ActorEnv[Protocol]) extends Actor[Protocol](name) {
 
   override protected def act(): Behavior[Protocol] =
     receive {
-      case cmd: Spawn[?, ?] =>
-        cmd.perform()
+      case cmd: Root.Spawn[?, ?] =>
+        val erased = cmd.erase
+        val child = spawnObj(erased.factory)(using erased.tag, summon[StateAccess])
+        erased.complete(child)
         same
-    }.ignore
-
-  def makeSpawn[T: ClassTag, R <: Actor[T]](
-                                             factory: ActorEnv[T] ?=> R,
-                                             complete: DeliveryFailure | R => Unit
-                                           ): Spawn[T, R] =
-    Spawn[T, R](
-      factory,
-      complete,
-      classTag[T],
-    )
-  end makeSpawn
-
-  class Spawn[T, R <: Actor[T]](
-                                 factory: ActorEnv[T] ?=> R,
-                                 complete: R => Unit,
-                                 tag: ClassTag[T],
-                               ) extends Protocol {
-
-    def perform()(using StateAccess): Unit = {
-      given ClassTag[T] = tag
-      val result = spawnObj[T, R](factory)
-      complete(result)
-    }
-
-  }
+    }.ignoreSystem
 
 }
-
 object Root {
 
   sealed trait Protocol
+
+  private[actors] class Spawn[A, B <: Actor[A]](
+    val factory: ActorEnv[A] ?=> B,
+    val complete: B => Unit,
+    val tag: ClassTag[A],
+  ) extends Protocol {
+
+    def erase: Spawn[Any, Actor[Any]] =
+      this.asInstanceOf[Spawn[Any, Actor[Any]]]
+
+  }
 
 }

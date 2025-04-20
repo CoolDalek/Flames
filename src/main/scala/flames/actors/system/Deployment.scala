@@ -5,18 +5,18 @@ import flames.actors.path.Selector
 
 trait Deployment {
 
-  def `type`: Deployment.Type
+  def kind: Deployment.Kind
 
-  private[actors] def root: Root
+  def root: Root
 
-  def deadLetter: DeadLetter
+  def deadLetters: DeadLetters
 
   def selector: Selector
 
 }
 object Deployment {
 
-  enum Type {
+  enum Kind {
     case Local
     case Remote
   }

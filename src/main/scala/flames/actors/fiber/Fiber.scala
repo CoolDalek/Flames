@@ -1,13 +1,13 @@
 package flames.actors.fiber
 
-import ReceiveResult.*
-import flames.actors.message.SystemMessage.*
+import flames.actors.*
 import flames.actors.behavior.Behavior
 import flames.actors.behavior.Behavior.*
+import flames.actors.fiber.ReceiveResult.*
 import flames.actors.fiber.State.*
-import flames.actors.*
 import flames.actors.message.*
 import flames.actors.message.StopReason.Unknown
+import flames.actors.message.SystemMessage.*
 import flames.actors.path.ActorPath
 import flames.actors.utils.*
 
@@ -16,17 +16,16 @@ import scala.collection.mutable
 import scala.util.control.NonFatal
 
 class Fiber[T](
-                private var behavior: Behavior[T],
-                private val mailbox: Mailbox[T],
-                val system: ActorSystem,
-                private val childs: Childs,
-                private val parent: Parent,
-                val path: ActorPath,
-              ) {
-  
-  export childs.{
+  private var behavior: Behavior[T],
+  private val mailbox: Mailbox[T],
+  val system: ActorSystem,
+  private val children: Children,
+  private val parent: Parent,
+  val path: ActorPath,
+) {
+  export children.{
     add as addChild,
-    values as getChilds,
+    values as getChildren,
   }
 
   private val state = new AtomicReference[State](Idle)
@@ -35,16 +34,18 @@ class Fiber[T](
   private def reportStop(reason: StopReason): Unit =
     watchers.foreach { ref =>
       ref.internalTell(
-        WatchedStopped(path, reason)
+        WatchedStopped(path, reason),
       )
     }
     parent.notNull { ref =>
       ref.internalTell(
-        ChildStopped(path, reason)
+        ChildStopped(path, reason),
       )
     }
+
     def deadLetter[R](msg: R): Unit =
-      system.deadLetter.publish(msg, path, DeliveryFailure.DeadLetter)
+      system.deadLetters.publish(msg, path, DeliveryFailure.DeadLetter)
+
     mailbox.drainInternal(deadLetter)
     mailbox.drainProtocol(deadLetter)
   end reportStop
@@ -52,7 +53,7 @@ class Fiber[T](
   private def scheduleRun(): Unit =
     system.execute { () =>
       //There is no way State is not Running, but we need to synchronize the actor's data, so we just pretend to work here.
-      if(state.get() == Running) executionLoop()
+      if (state.get() == Running) executionLoop()
     }
 
   def tell[R](msg: R, push: R => Boolean): Ack[Unit] =
@@ -60,14 +61,14 @@ class Fiber[T](
       case Stopped =>
         Ack.Undelivered(DeliveryFailure.DeadLetter)
       case Idle =>
-        if(push(msg)) {
+        if (push(msg)) {
           val run = state.compareAndSet(Idle, Running)
           if (run) scheduleRun()
-          Acks.Ok
-        } else Acks.Overflow
+          Ack.Ok
+        } else Ack.Overflow
       case Running =>
-        if(push(msg)) Acks.Ok
-        else Acks.Overflow
+        if (push(msg)) Ack.Ok
+        else Ack.Overflow
   end tell
 
   def timerTell(msg: T): Ack[Unit] = tell(msg, mailbox.pushTimer)
@@ -76,12 +77,12 @@ class Fiber[T](
 
   def internalTell(msg: InternalMessage): Ack[Unit] = tell(msg, mailbox.pushInternal)
 
-  def executionLoop(): Unit =
+  private def executionLoop(): Unit =
     var loop = true
     var yieldCount = 8
     while (loop) {
-      if (yieldCount > 0) { 
-        
+      if (yieldCount > 0) {
+
         def processMail[R](poll: => R | Null, process: R => ReceiveResult)(onEmpty: => Unit): Unit =
           receive(poll, process) match
             case EmptyQueue =>
@@ -99,11 +100,11 @@ class Fiber[T](
             processMail(mailbox.pollProtocol(), processProtocol) {
               if (mailbox.isEmpty)
                 state.set(Idle)
-                if(mailbox.isEmpty)
+                if (mailbox.isEmpty)
                   loop = false
                 else
                   val continue = state.compareAndSet(Idle, Running)
-                  if(!continue) loop = false
+                  if (!continue) loop = false
             }
           }
         catch {
@@ -122,19 +123,19 @@ class Fiber[T](
     }
   end executionLoop
 
-  def receive[R](poll: => R | Null, process: R => ReceiveResult): ReceiveResult =
+  private def receive[R](poll: => R | Null, process: R => ReceiveResult): ReceiveResult =
     val msg = poll
     if (null == msg) EmptyQueue
     else process(msg.asInstanceOf[R])
   end receive
 
-  def processProtocol(msg: T): ReceiveResult =
+  private def processProtocol(msg: T): ReceiveResult =
     act(_.actProtocol, msg)
 
-  def processSystem(msg: SystemMessage): ReceiveResult =
+  private def processSystem(msg: SystemMessage): ReceiveResult =
     act(_.actSystem, msg)
 
-  def act[R](get: Receive[T] => R => Behavior[T], msg: R): ReceiveResult =
+  private def act[R](get: Receive[T] => R => Behavior[T], msg: R): ReceiveResult =
     behavior match
       case Stop => Break
       case Same => Continue
@@ -151,11 +152,11 @@ class Fiber[T](
             Continue
   end act
 
-  def processInternal(msg: InternalMessage): ReceiveResult =
+  private def processInternal(msg: InternalMessage): ReceiveResult =
     msg match
       case cs @ ChildStopped(path, _) =>
-        val ref = childs.remove(path)
-        if(null == ref) Continue
+        val ref = children.remove(path)
+        if (null == ref) Continue
         else processSystem(cs)
       case ps: ParentStopped =>
         processSystem(ps)
@@ -170,7 +171,7 @@ class Fiber[T](
         Continue
       case FindChild(selector, index, replyTo) =>
         import flames.actors.path.Selector.Protocol.*
-        val set = childs.search(selector(index))
+        val set = children.search(selector(index))
         val next = index + 1
         if (selector.length > next)
           if (set.isEmpty) replyTo.tell(NoResults(path))
@@ -179,7 +180,7 @@ class Fiber[T](
             set.foreach(_.internalTell(request))
             replyTo.tell(Reroute(path, set))
           }
-        else if(set.isEmpty) replyTo.tell(NoResults(path))
+        else if (set.isEmpty) replyTo.tell(NoResults(path))
         else replyTo.tell(Result(path, set))
         Continue
   end processInternal

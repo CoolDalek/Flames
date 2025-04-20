@@ -18,12 +18,6 @@ object Unique {
     this: To =>
     protected val self: From
 
-    /*
-    * no eligible member ## at this.self
-    * this.self.## cannot be exported because it is already a member of trait Delegate
-    *     export self.{## as hashCode, toString}
-    * */
-
     final override def hashCode(): Int = self.##
 
     final override def value: String = self.toString
@@ -41,13 +35,13 @@ object Unique {
   end Delegate
 
   private class Increment(
-                           val self: Long,
-                           var childs: Long,
-                         ) extends Delegate[Long, Increment]:
+    val self: Long,
+    var children: Long,
+  ) extends Delegate[Long, Increment]:
 
     override def next(): Unique = {
-      childs += 1
-      Increment(childs, 0)
+      children += 1
+      Increment(children, 0)
     }
 
   end Increment
@@ -55,18 +49,18 @@ object Unique {
   def increment(): Unique = Increment(0, 0)
 
   private class Uuid(
-                      val self: UUID,
-                      val factory: () => UUID,
-                    ) extends Delegate[UUID, Uuid] {
+    val self: UUID,
+    val factory: () => UUID,
+  ) extends Delegate[UUID, Uuid] {
     def next(): Uuid = Uuid(factory(), factory)
   }
 
   def uuid(factory: => UUID = UUID.randomUUID()): Unique = Uuid(factory, () => factory)
 
   private class Timestamp(
-                           val self: Long,
-                           val factory: () => Long,
-                         ) extends Delegate[Long, Timestamp] {
+    val self: Long,
+    val factory: () => Long,
+  ) extends Delegate[Long, Timestamp] {
     def next(): Unique = Timestamp(factory(), factory)
   }
 

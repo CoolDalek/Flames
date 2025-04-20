@@ -4,7 +4,7 @@ import scala.util.NotGiven
 
 object Nulls {
 
-  extension[T] (self: T | Null) {
+  extension [T](self: T | Null) {
 
     inline def ifNull[R](inline orElse: => R): T | R =
       if (null == self) orElse

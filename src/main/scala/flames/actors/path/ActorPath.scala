@@ -1,8 +1,8 @@
 package flames.actors.path
 
-import java.util.Objects
+import flames.actors.path.ActorPath.*
 
-import ActorPath.*
+import java.util.Objects
 
 sealed trait ActorPath {
 
@@ -18,33 +18,31 @@ sealed trait ActorPath {
 private[actors] object ActorPath {
 
   case class Child(
-                    parent: ActorPath,
-                    name: String,
-                    unique: Unique,
-                  ) extends ActorPath {
+    parent: ActorPath,
+    name: String,
+    unique: Unique,
+  ) extends ActorPath {
     override def toString: String = s"$parent/$name-$unique"
-
   }
-  case class Local(
-                    name: String,
-                    unique: Unique,
-                  ) extends ActorPath {
-    override def parent: ActorPath = this
-    override def toString: String = name
 
+  case class Local(
+    name: String,
+    unique: Unique,
+  ) extends ActorPath {
+    override def parent: ActorPath = this
+
+    override def toString: String = s"$name-$unique"
   }
 
   case class Remote(
-                     name: String,
-                     unique: Unique,
-                     host: String,
-                     port: Int,
-                   ) extends ActorPath {
-
+    name: String,
+    unique: Unique,
+    host: String,
+    port: Int,
+  ) extends ActorPath {
     override def parent: ActorPath = this
 
-    override def toString: String = name
-
+    override def toString: String = s"$host:$port//$name-$unique"
   }
 
   def child(parent: ActorPath, name: String): ActorPath =

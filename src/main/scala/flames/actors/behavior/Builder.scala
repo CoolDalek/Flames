@@ -6,25 +6,29 @@ import scala.annotation.targetName
 import scala.util.control.NonFatal
 
 sealed trait Builder[-Protocol, -ReceiveType]
+
 object Builder {
 
   case class Receive[Protocol, ReceiveType](
-                                             act: Receiver[Protocol, ReceiveType],
-                                           ) extends Builder[Protocol, ReceiveType] {
+    act: Receiver[Protocol, ReceiveType],
+  ) extends Builder[Protocol, ReceiveType] {
 
-    def onFailure(handler: PartialFunction[Throwable, Behavior[Protocol]]): Builder[Protocol, ReceiveType] =
+    def onFailure(
+      handler: PartialFunction[Throwable, Behavior[Protocol]],
+    ): Builder[Protocol, ReceiveType] =
       HandleFailure(this, handler)
 
   }
 
   case class HandleFailure[Protocol, ReceiveType](
-                                                   receive: Receive[Protocol, ReceiveType],
-                                                   handler: PartialFunction[Throwable, Behavior[Protocol]],
-                                                 ) extends Builder[Protocol, ReceiveType]
+    receive: Receive[Protocol, ReceiveType],
+    handler: PartialFunction[Throwable, Behavior[Protocol]],
+  ) extends Builder[Protocol, ReceiveType]
 
   case object Ignore extends Builder[Any, Any]
 
   type ReceiveProtocol[T] = Receive[T, T]
+
   type ReceiveSystem[T] = Receive[T, SystemMessage]
 
   extension [T](protocol: Builder[T, T]) {
@@ -36,8 +40,7 @@ object Builder {
         system = system,
       )
 
-    @targetName("ignoreSystem")
-    inline def ignore: Behavior[T] = and(Ignore)
+    inline def ignoreSystem: Behavior[T] = and(Ignore)
 
   }
 
@@ -50,24 +53,23 @@ object Builder {
         system = system,
       )
 
-    @targetName("ignoreProtocol")
-    inline def ignore: Behavior[T] = and(Ignore)
+    inline def ignoreProtocol: Behavior[T] = and(Ignore)
 
   }
 
   private inline def build[T](
-                               protocol: Builder[T, T],
-                               system: Builder[T, SystemMessage],
-                             ): Behavior[T] =
+    protocol: Builder[T, T],
+    system: Builder[T, SystemMessage],
+  ): Behavior[T] =
     Behavior.Receive(
       actProtocol = interpret(protocol),
       actSystem = interpret(system),
     )
   end build
 
-  def interpret[Protocol, ReceiveType](
-                                        builder: Builder[Protocol, ReceiveType]
-                                      ): Receiver[Protocol, ReceiveType] =
+  private def interpret[Protocol, ReceiveType](
+    builder: Builder[Protocol, ReceiveType],
+  ): Receiver[Protocol, ReceiveType] =
     builder match
       case Receive(act) => act
       case HandleFailure(receive, handler) =>

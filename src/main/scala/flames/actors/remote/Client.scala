@@ -1,8 +1,8 @@
 package flames.actors.remote
 
 import flames.actors.*
-import flames.actors.path.*
 import flames.actors.message.*
+import flames.actors.path.*
 import flames.actors.pattern.Wait
 import flames.actors.utils.*
 
@@ -10,13 +10,16 @@ import scala.annotation.tailrec
 
 trait Client {
 
-  def select[F[_]: Wait](query: Vector[ActorSelector],
-                         credentials: ActorSelector.Remote)
-                        (using Timeout): F[Ack[SelectionResult[Nothing]]]
-
-  def shutdown(): Unit
+  def select[F[_]: Wait](
+    host: String,
+    port: Int,
+    root: String,
+    query: Vector[ActorSelector],
+  )(using Timeout): F[Ack[SelectionResult[Nothing]]]
 
 }
+
+/*
 object Client {
 
   import scala.collection.mutable
@@ -26,27 +29,30 @@ object Client {
   import scala.util.control.*
 
   type Completer = DeliveryFailure | SelectionResult[Nothing] => Unit
+
   enum Protocol {
     case SelectRequest(
-                        query: Vector[ActorSelector],
-                        credentials: ActorSelector.Remote,
-                        complete: Completer,
-                        timeout: Timeout,
-                      )
+      query: Vector[ActorSelector],
+      credentials: ActorSelector.Remote,
+      complete: Completer,
+      timeout: Timeout,
+    )
     case SelectResponse
     case ResponseTimeout(key: SelectionKey)
     case Tick
     case Shutdown
   }
+
   protected class Impl(using ActorEnv[Protocol]) extends Client with Actor[Protocol]("remote-connector"):
+
     import Protocol.*
 
     override def select[F[_] : Wait](query: Vector[ActorSelector],
-                                     credentials: ActorSelector.Remote)
-                                    (using Timeout): F[Ack[SelectionResult[Nothing]]] =
+      credentials: ActorSelector.Remote)
+      (using Timeout): F[Ack[SelectionResult[Nothing]]] =
       Wait[F].asyncAck { callback =>
         self.tell(
-          SelectRequest(query, credentials, callback)
+          SelectRequest(query, credentials, callback),
         )
       }
     end select
@@ -58,7 +64,7 @@ object Client {
     override protected def act(): Behavior[Protocol] = idle
 
     inline private def guard[R](complete: Completer, inline cleanup: => Unit = () => ())
-                               (inline action: => R): Unit =
+      (inline action: => R): Unit =
       try action
       catch case NonFatal(exc) =>
         complete(DeliveryFailure.Connection(exc))
@@ -70,7 +76,7 @@ object Client {
       val complete = req.complete
       guard(complete) {
         val socket = SocketChannel.open(
-          new InetSocketAddress(creds.host, creds.port)
+          new InetSocketAddress(creds.host, creds.port),
         )
         socket.configureBlocking(false)
         socket.setOption(StandardSocketOptions.TCP_NODELAY, true)
@@ -85,7 +91,7 @@ object Client {
       receive {
         case req: SelectRequest =>
           handle(req)
-          if(active.isEmpty) same
+          if (active.isEmpty) same
           else
             self.tell(Tick)
             working
@@ -93,7 +99,7 @@ object Client {
           eventLoop.close()
           stop
         case _ => same
-      }.ignore
+      }.ignoreSystem
     end idle
 
     def working: Behavior[Protocol] =
@@ -115,7 +121,7 @@ object Client {
         case Tick =>
           self.tell(Tick)
           eventLoop.selectNow { key =>
-            if(key.isWritable && pending.contains(key))
+            if (key.isWritable && pending.contains(key))
               val complete = active(key)
               val query = pending.remove(key).get
               guard(complete, active.remove(key)) {
@@ -124,7 +130,7 @@ object Client {
                   .asInstanceOf[SocketChannel]
                   .write(data)
               }
-            else if(key.isReadable && !pending.contains(key)) {
+            else if (key.isReadable && !pending.contains(key)) {
               val complete = active(key)
               guard(complete, active.remove(key)) {
                 val data = key.channel()
@@ -134,7 +140,7 @@ object Client {
             }
           }
           same
-      }.ignore
+      }.ignoreSystem
     end working
 
   private object Impl:
@@ -144,22 +150,23 @@ object Client {
 
       def uniqueString(x: Unique | Null): String =
         x.mapOrElse(
-          y => y.
+          y => y.,
         )
       end uniqueString
 
       @tailrec
       def loop(i: Int): Unit =
-        if(query.length < i)
+        if (query.length < i)
           query(i) match {
             case ActorSelector.Simple(name, unique) =>
               array(i) = ByteBuffer.wrap(
-                s"Simple($name, ${unique.ma})".getBytes
+                s"Simple($name, ${unique.ma})".getBytes,
               )
             case ActorSelector.Remote(name, unique, host, port) => ???
           }
           loop(i + 1)
       end loop
+
       loop(0)
       array
     }
@@ -172,3 +179,4 @@ object Client {
   object ConnectionShutdown extends RuntimeException("Connection shutdown") with NoStackTrace
 
 }
+*/
