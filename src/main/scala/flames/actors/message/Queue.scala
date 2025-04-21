@@ -23,16 +23,15 @@ object Queue {
     extension [T](self: C[T])
       def poll(): T | Null = self.poll()
       def push(elem: T): Boolean = self.offer(elem)
-      def isEmpty: Boolean = self.isEmpty()
+      def isEmpty: Boolean = self.isEmpty
   end given
 
   given Queue[SQueue] with
     extension [T](self: SQueue[T])
       def poll(): T | Null = self.dequeue()
-      def push(elem: T): Boolean = {
-        self.enqueue(elem);
+      def push(elem: T): Boolean =
+        self.enqueue(elem)
         true
-      }
       def isEmpty: Boolean = self.isEmpty
   end given
 

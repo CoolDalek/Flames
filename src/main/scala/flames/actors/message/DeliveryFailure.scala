@@ -1,7 +1,5 @@
 package flames.actors.message
 
-import scala.util.control.NoStackTrace
-
 enum DeliveryFailure(
   message: String,
   reason: Throwable | Null = null,

@@ -12,8 +12,6 @@ sealed trait ActorPath {
 
   def parent: ActorPath
 
-  inline def value: String = toString
-
 }
 private[actors] object ActorPath {
 

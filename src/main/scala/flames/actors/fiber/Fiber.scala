@@ -1,12 +1,12 @@
 package flames.actors.fiber
 
+import flames.actors
 import flames.actors.*
 import flames.actors.behavior.Behavior
 import flames.actors.behavior.Behavior.*
-import flames.actors.fiber.ReceiveResult.*
+import flames.actors.fiber.ProcessResult.*
 import flames.actors.fiber.State.*
 import flames.actors.message.*
-import flames.actors.message.StopReason.Unknown
 import flames.actors.message.SystemMessage.*
 import flames.actors.path.ActorPath
 import flames.actors.utils.*
@@ -18,124 +18,81 @@ import scala.util.control.NonFatal
 class Fiber[T](
   private var behavior: Behavior[T],
   private val mailbox: Mailbox[T],
-  val system: ActorSystem,
   private val children: Children,
-  private val parent: Parent,
+  private val autoYield: Int,
+  val parent: Parent,
+  val system: ActorSystem,
   val path: ActorPath,
-) {
+) extends AtomicReference[State](Idle) with Runnable {
+
   export children.{
     add as addChild,
     values as getChildren,
   }
 
-  private val state = new AtomicReference[State](Idle)
   private val watchers = mutable.Set.empty[ErasedRef]
 
-  private def reportStop(reason: StopReason): Unit =
-    watchers.foreach { ref =>
-      ref.internalTell(
-        WatchedStopped(path, reason),
-      )
-    }
-    parent.notNull { ref =>
-      ref.internalTell(
-        ChildStopped(path, reason),
-      )
-    }
+  override def run(): Unit = {
+    //There is no way State is not Running,
+    // but we need to synchronize the actor's data,
+    // so we just pretend to work here.
+    if (get() == Running) executionLoop()
+  }
 
-    def deadLetter[R](msg: R): Unit =
-      system.deadLetters.publish(msg, path, DeliveryFailure.DeadLetter)
-
-    mailbox.drainInternal(deadLetter)
-    mailbox.drainProtocol(deadLetter)
-  end reportStop
-
-  private def scheduleRun(): Unit =
-    system.execute { () =>
-      //There is no way State is not Running, but we need to synchronize the actor's data, so we just pretend to work here.
-      if (state.get() == Running) executionLoop()
-    }
-
-  def tell[R](msg: R, push: R => Boolean): Ack[Unit] =
-    state.get() match
-      case Stopped =>
-        Ack.Undelivered(DeliveryFailure.DeadLetter)
-      case Idle =>
-        if (push(msg)) {
-          val run = state.compareAndSet(Idle, Running)
-          if (run) scheduleRun()
-          Ack.Ok
-        } else Ack.Overflow
-      case Running =>
-        if (push(msg)) Ack.Ok
-        else Ack.Overflow
-  end tell
-
-  def timerTell(msg: T): Ack[Unit] = tell(msg, mailbox.pushTimer)
-
-  def userTell(msg: T): Ack[Unit] = tell(msg, mailbox.pushUser)
-
-  def internalTell(msg: InternalMessage): Ack[Unit] = tell(msg, mailbox.pushInternal)
+  private inline def scheduleRun(): Unit =
+    system.execute(this)
 
   private def executionLoop(): Unit =
     var loop = true
-    var yieldCount = 8
+    var yieldCount = autoYield
     while (loop) {
       if (yieldCount > 0) {
 
-        def processMail[R](poll: => R | Null, process: R => ReceiveResult)(onEmpty: => Unit): Unit =
-          receive(poll, process) match
-            case EmptyQueue =>
-              onEmpty
-            case Break =>
-              state.set(Stopped)
-              loop = false
-              reportStop(StopReason.Shutdown)
-            case Continue =>
-              yieldCount -= 1
+        def processMail[R](poll: => R | Null, process: R => ProcessResult)(onEmpty: => Unit): Unit =
+          val msg = poll
+          if (null == msg) onEmpty else
+            process(msg.asInstanceOf[R]) match
+              case Continue =>
+                yieldCount -= 1
+              case Break =>
+                val reason = StopReason.Shutdown
+                set(Stopped(reason))
+                loop = false
+                reportStop(reason)
+            end match
+          end if
         end processMail
 
         try
           processMail(mailbox.pollInternal(), processInternal) {
             processMail(mailbox.pollProtocol(), processProtocol) {
               if (mailbox.isEmpty)
-                state.set(Idle)
+                set(Idle)
                 if (mailbox.isEmpty)
                   loop = false
                 else
-                  val continue = state.compareAndSet(Idle, Running)
+                  val continue = compareAndSet(Idle, Running)
                   if (!continue) loop = false
             }
           }
         catch {
           case NonFatal(exc) =>
-            state.set(Stopped)
+            val reason = StopReason.Failure(exc)
+            set(Stopped(reason))
             loop = false
-            reportStop(StopReason.Failure(exc))
+            reportStop(reason)
         }
 
       } else {
         loop = false
         //Change Running from Running just for synchronization.
-        state.set(Running)
+        set(Running)
         scheduleRun()
       }
     }
   end executionLoop
 
-  private def receive[R](poll: => R | Null, process: R => ReceiveResult): ReceiveResult =
-    val msg = poll
-    if (null == msg) EmptyQueue
-    else process(msg.asInstanceOf[R])
-  end receive
-
-  private def processProtocol(msg: T): ReceiveResult =
-    act(_.actProtocol, msg)
-
-  private def processSystem(msg: SystemMessage): ReceiveResult =
-    act(_.actSystem, msg)
-
-  private def act[R](get: Receive[T] => R => Behavior[T], msg: R): ReceiveResult =
+  private def act[R](get: Receive[T] => R => Behavior[T], msg: R): ProcessResult =
     behavior match
       case Stop => Break
       case Same => Continue
@@ -152,7 +109,13 @@ class Fiber[T](
             Continue
   end act
 
-  private def processInternal(msg: InternalMessage): ReceiveResult =
+  private def processProtocol(msg: T): ProcessResult =
+    act(_.actProtocol, msg)
+
+  private def processSystem(msg: SystemMessage): ProcessResult =
+    act(_.actSystem, msg)
+
+  private def processInternal(msg: InternalMessage): ProcessResult =
     msg match
       case cs @ ChildStopped(path, _) =>
         val ref = children.remove(path)
@@ -184,5 +147,49 @@ class Fiber[T](
         else replyTo.tell(Result(path, set))
         Continue
   end processInternal
+
+  private def tell[R](msg: R, push: R => Boolean): Ack[Unit] =
+    get() match
+      case Stopped(_) =>
+        Ack.Undelivered(DeliveryFailure.DeadLetter)
+      case Idle =>
+        if (push(msg)) {
+          val run = compareAndSet(Idle, Running)
+          if (run) scheduleRun()
+          Ack.Ok
+        } else Ack.Overflow
+      case Running =>
+        if (push(msg)) Ack.Ok
+        else Ack.Overflow
+  end tell
+
+  def timerTell(msg: T): Ack[Unit] = tell(msg, mailbox.pushTimer)
+
+  def userTell(msg: T): Ack[Unit] = tell(msg, mailbox.pushUser)
+
+  def internalTell(msg: InternalMessage): Ack[Unit] = tell(msg, mailbox.pushInternal)
+
+  private def reportStop(reason: StopReason): Unit =
+    watchers.foreach { ref =>
+      ref.internalTell(
+        WatchedStopped(path, reason),
+      )
+    }
+    parent.notNull { ref =>
+      ref.internalTell(
+        ChildStopped(path, reason),
+      )
+    }
+
+    def deadLetter[R](msg: R): Unit =
+      system.deadLetters.publish(
+        msg,
+        path,
+        DeliveryFailure.DeadLetter,
+      )
+
+    mailbox.drainInternal(deadLetter)
+    mailbox.drainProtocol(deadLetter)
+  end reportStop
 
 }

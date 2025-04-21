@@ -1,7 +1,7 @@
 package flames.actors.ref
 
 import flames.actors.*
-import flames.actors.fiber.Fiber
+import flames.actors.fiber.{Fiber, State}
 import flames.actors.message.*
 import flames.actors.message.Ack.*
 import flames.actors.message.DeliveryFailure.*
@@ -12,9 +12,9 @@ import flames.actors.pattern.*
 import scala.reflect.{ClassTag, classTag}
 
 class LocalRef[T](
-  fiber: Fiber[T],
+  val fiber: Fiber[T],
   val tag: Class[?],
-) extends ActorRef[T] {
+) extends ActorRef[T]:
   export fiber.{
     getChildren,
     addChild,
@@ -55,9 +55,15 @@ class LocalRef[T](
     fiber.internalTell(SystemMessage.WatchRequest(ref)) match
       case Undelivered(reason) =>
         val reply = if (reason == DeliveryFailure.DeadLetter)
-          SystemMessage.WatchedStopped(fiber.path, StopReason.Unknown)
-        else
-          SystemMessage.CantWatch(fiber.path, reason)
+          val stopReason = ref match
+            case ref: LocalRef[_] =>
+              ref.fiber.get() match
+                case State.Stopped(reason) => reason
+                case _ => StopReason.Unknown // Shouldn't happen
+            case _ => StopReason.Unknown
+          end stopReason
+          SystemMessage.WatchedStopped(fiber.path, stopReason)
+        else SystemMessage.CantWatch(fiber.path, reason)
         ref.internalTell(reply)
       case _: Delivered[Unit] => ()
   end watchRequest
@@ -81,4 +87,4 @@ class LocalRef[T](
     instance
   end spawn
 
-}
+end LocalRef

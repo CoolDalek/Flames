@@ -66,4 +66,14 @@ object Unique {
 
   def timestamp(factory: => Long = System.nanoTime()): Unique = Timestamp(factory, () => factory)
 
+  private class Reference
+  private class ReferenceFactory(
+    val self: Reference = Reference(),
+  ) extends Delegate[Reference, ReferenceFactory] {
+    override private[actors] def next(): Unique = ReferenceFactory()
+
+  }
+
+  def reference(): Unique = ReferenceFactory()
+
 }

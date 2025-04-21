@@ -15,44 +15,27 @@ trait Children {
   def search(by: ActorSelector): Set[ErasedRef]
 
 }
-
 object Children {
-  import collection.mutable.Map as MutMap
+  import scala.collection.concurrent.TrieMap
+  import scala.collection.mutable
 
-  private trait Factory[Map[_, _]] {
-    final type ByUnique = Map[Unique, ErasedRef]
+  private trait ScalaMap extends Children:
+    final type ByUnique = mutable.Map[Unique, ErasedRef]
 
-    final type ByName = Map[String, ByUnique]
+    final type ByName = mutable.Map[String, ByUnique]
 
-    def makeMap[K, V]: Map[K, V]
+    protected def makeMap[K, V]: mutable.Map[K, V]
 
-    def mkByName: ByName = makeMap[String, ByUnique]
+    private def mkByName: ByName = makeMap[String, ByUnique]
 
-    def mkByUnique: ByUnique = makeMap[Unique, ErasedRef]
+    private def mkByUnique: ByUnique = makeMap[Unique, ErasedRef]
 
-    final val cachedEmpty: ByUnique = mkByUnique
-
-  }
-
-  private object Sync extends Factory[MutMap] {
-    override def makeMap[K, V]: MutMap[K, V] = MutMap.empty
-  }
-
-  private object Async extends Factory[MutMap] {
-    import scala.collection.concurrent.TrieMap
-
-    override def makeMap[K, V]: TrieMap[K, V] = TrieMap.empty
-  }
-
-  private class ScalaMap(
-    private val factory: Factory[MutMap],
-  ) extends Children:
-    private val underlying = factory.mkByName
+    private val underlying = mkByName
 
     override def add(ref: ErasedRef): Unit =
       underlying.getOrElseUpdate(
         ref.path.name,
-        factory.mkByUnique,
+        mkByUnique,
       ).addOne(
         ref.path.unique,
         ref,
@@ -61,7 +44,7 @@ object Children {
     override def remove(path: ActorPath): ErasedRef | Null =
       underlying.getOrElse(
         path.name,
-        factory.cachedEmpty,
+        mkByUnique,
       ).remove(
         path.unique,
       ).orNull
@@ -72,7 +55,7 @@ object Children {
     override def search(by: ActorSelector): Set[ErasedRef] =
       val unique = underlying.getOrElse(
         by.name,
-        factory.cachedEmpty,
+        mkByUnique,
       )
       by.unique.mapOrElse(
         x => unique.get(x) to Set,
@@ -82,8 +65,12 @@ object Children {
 
   end ScalaMap
 
-  def sync: Children = ScalaMap(Sync)
+  def sync: Children = new ScalaMap {
+    override protected def makeMap[K, V]: mutable.Map[K, V] = mutable.Map.empty
+  }
 
-  def async: Children = ScalaMap(Async)
+  def async: Children = new ScalaMap {
+    override protected def makeMap[K, V]: mutable.Map[K, V] = TrieMap.empty
+  }
 
 }

@@ -4,7 +4,7 @@ import flames.actors.message.*
 import flames.actors.message.Ack.*
 import flames.actors.utils.SummonerK
 
-// unlawful async monad 
+// unlawful >:) async monad
 trait Wait[F[_]] extends Monad[F] {
 
   def asyncAck[T](f: (DeliveryFailure | T => Unit) => Unit): F[Ack[T]]

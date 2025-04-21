@@ -1,33 +1,38 @@
 package flames.actors
 
-import flames.actors.behavior.*
-import flames.actors.fiber.*
-import flames.actors.message.*
+import flames.actors.fiber.Children
+import flames.actors.message.Mailbox
 import flames.actors.path.*
 import flames.actors.pattern.*
-import flames.actors.ref.*
+import flames.actors.remote.Client
 import flames.actors.system.*
-import flames.actors.utils.*
+import flames.actors.utils.Logger
 
+import java.util.concurrent.{Executors, ForkJoinPool}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.{ClassTag, classTag}
 
-trait ActorSystem(
-  name: String,
-  unique: Unique,
-) extends ExecutionContext {
+trait ActorSystem extends ExecutionContext:
   protected given ActorSystem = this
 
-  def deployment: Deployment
+  def name: String
 
-  def root: ErasedRef = deployment.root.selfRef
+  def config: ActorConfig
 
-  def path: ActorPath = root.path
+  def root: ActorRef[Root.Protocol]
 
-  def deadLetters: DeadLetters = deployment.deadLetters
+  def path: ActorPath
 
-  def selector: Selector = deployment.selector
+  def deadLetters: DeadLetters
+
+  def selector: Selector
+
+  def refProvider: RefProvider
+
+  def scheduler: Scheduler
+
+  def blocker: ExecutionContext
 
   def spawn[F[_]: Wait, T: ClassTag, R <: Actor[T]](actor: ActorEnv[T] ?=> R): F[(R, ActorRef[T])] =
     spawnObj[F, T, R](actor).map(x => x -> x.self)
@@ -39,9 +44,9 @@ trait ActorSystem(
     spawnObj[F, T, R](actor).map(_.self)
 
   def spawnObj[F[_]: Wait, T: ClassTag, R <: Actor[T]](actor: ActorEnv[T] ?=> R): F[R] =
-    import Ack.*
+    import flames.actors.message.Ack.*
     Wait[F].asyncAck[R] { callback =>
-      deployment.root.selfRef.tell(
+      root.tell(
         Root.Spawn(actor, callback, classTag[T]),
       )
     }.flatMap {
@@ -51,33 +56,122 @@ trait ActorSystem(
     }
   end spawnObj
 
-  def scheduleMessage[T](delay: FiniteDuration, to: ActorRef[T], message: T): Cancellable
+  def scheduleMessage[T](
+    delay: FiniteDuration,
+    to: ActorRef[T],
+    message: T,
+  ): Cancellable
 
-  def scheduleMessage[T](delay: FiniteDuration, period: FiniteDuration, to: ActorRef[T], message: T): Cancellable
+  def scheduleMessage[T](
+    delay: FiniteDuration,
+    period: FiniteDuration,
+    to: ActorRef[T],
+    message: T,
+  ): Cancellable
 
-  private[actors] def makeRef[T](
+end ActorSystem
+object ActorSystem:
+
+  val DefaultConfig: ActorConfig = ActorConfig(
+    8,
+    Mailbox.concurrentLinkedQueue,
+    () => Children.sync,
+  )
+
+  def defaultBlocker(
+    prefix: String,
+    reporter: Logger.Fallback = Logger.DefaultFallback,
+  ): ExecutionContext =
+    ExecutionContext.fromExecutor(
+      Executors.newCachedThreadPool(
+        BlockingThreadFactory(
+          s"$prefix-blocker",
+          reporter,
+        ),
+      ),
+      reporter,
+    )
+
+  def defaultCpu(
+    prefix: String,
+    reporter: Logger.Fallback = Logger.DefaultFallback,
+    parallelism: Int = sys.runtime.availableProcessors(),
+    maxBlocking: Int = -1,
+  ): ExecutionContext =
+    ExecutionContext.fromExecutor(
+      ForkJoinPool(
+        parallelism,
+        FjpThreadFactory(
+          s"$prefix-cpu",
+          reporter,
+          if maxBlocking > 0 then maxBlocking else parallelism,
+        ),
+        reporter,
+        false,
+      ),
+      reporter,
+    )
+
+  def defaultScheduler(
+    prefix: String,
+    interruptRunning: Boolean = false,
+    reporter: Logger.Fallback = Logger.DefaultFallback,
+  ): Scheduler =
+    Scheduler.java(
+      s"$prefix-scheduler",
+      interruptRunning,
+      reporter,
+    )
+
+  private class DefaultSystem(override val name: String) extends ActorSystem {
+    override val scheduler: Scheduler = defaultScheduler(name)
+    override val blocker: ExecutionContext = defaultBlocker(name)
+    private val cpu = defaultCpu(name)
+    export cpu.*
+
+    override def config: ActorConfig = DefaultConfig
+
+    override val refProvider: RefProvider = RefProvider.default()
+
+    override val root: ActorRef[Root.Protocol] =
+      new Root(name)(using ActorEnv.root).self
+
+    override def path: ActorPath = root.path
+
+    val (deadQueue, deadRef) = DeadLetters.default()(using ActorEnv.make(root))
+
+    override def deadLetters: DeadLetters = deadQueue
+    override val selector: Selector = Selector(this, Client.noop)
+
+    override def scheduleMessage[T](
+      delay: FiniteDuration,
+      to: ActorRef[T],
+      message: T,
+    ): Cancellable =
+      scheduler.delayed(delay)(() => to.tell(message))
+
+    override def scheduleMessage[T](
+      delay: FiniteDuration,
+      period: FiniteDuration,
+      to: ActorRef[T],
+      message: T,
+    ): Cancellable =
+      scheduler.withFixedDelay(delay, period)(() => to.tell(message))
+
+  }
+
+  def default[F[_]: Wait](
     name: String,
-    behavior: Behavior[T],
-    mailbox: Mailbox[T],
-    children: Children,
-  )(using env: ActorEnv[T]): LocalRef[T] =
-    val parent = env.parent
-    val path = parent.mapOrElse(
-      x => ActorPath.child(x.path, name),
-      ActorPath.local(name, this.path.unique),
-    )
-    val fiber = Fiber[T](
-      behavior = behavior,
-      mailbox = mailbox,
-      system = this,
-      children = children,
-      parent = parent,
-      path = path,
-    )
-    LocalRef[T](
-      fiber,
-      env.tag.runtimeClass,
-    )
-  end makeRef
+  ): F[ActorSystem] =
+    val impl = DefaultSystem(name)
+    Wait[F].async[Unit] { cb =>
+      impl.root.tell(
+        Root.Register(
+          impl.deadRef,
+          () => cb(()),
+        ),
+      )
+    }.as(impl)
+  end default
 
-}
+end ActorSystem

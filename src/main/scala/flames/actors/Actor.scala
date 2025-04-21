@@ -1,33 +1,28 @@
 package flames.actors
 
-import flames.actors.fiber.Children
 import flames.actors.message.*
 import flames.actors.path.*
 import flames.actors.pattern.Wait
 import flames.actors.ref.LocalRef
-import flames.actors.system.Cancellable
-import flames.actors.utils.*
+import flames.actors.system.{ActorConfig, Cancellable}
 
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.ClassTag
 
-trait Actor[T](name: String)(using env: ActorEnv[T]) {
-  import flames.actors
-  import actors.behavior
+trait Actor[T](using env: ActorEnv[T])(name: String, config: ActorConfig = env.system.config) {
   import behavior.Builder
 
   export Builder.{ReceiveProtocol, ReceiveSystem}
   export behavior.Behavior
-  export actors.message.{Ack, Timeout, SystemMessage}
+  export flames.actors.message.{Ack, Timeout, SystemMessage}
 
   protected given system: ActorSystem = env.system
 
   private[actors] val selfRef: LocalRef[T] =
-    system.makeRef(
+    system.refProvider.local(
       name,
       act(),
-      Mailbox.concurrentLinkedQueue[T],
-      Children.sync,
+      config,
     )
 
   protected def act(): Behavior[T]

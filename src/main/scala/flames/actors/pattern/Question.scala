@@ -1,7 +1,7 @@
 package flames.actors.pattern
 
-import flames.actors.{Actor, ActorEnv}
 import flames.actors.message.*
+import flames.actors.{Actor, ActorEnv}
 
 class Question[T](
   complete: DeliveryFailure | T => Unit,

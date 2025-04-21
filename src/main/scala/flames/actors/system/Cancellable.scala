@@ -1,5 +1,7 @@
 package flames.actors.system
 
+import java.util.concurrent.Future as JFuture
+
 trait Cancellable {
 
   def isCancelled: Boolean
@@ -21,11 +23,16 @@ object Cancellable {
       trigger()
       true
 
-    // acknowledge cancellation signal
+    // confirm that cancellation happened
     def cancelled(): Unit = flag = true
 
   }
 
   def signal(trigger: => Unit): Signal = Signal(() => trigger)
+
+  def javaFuture[T](future: JFuture[T], interrupt: Boolean): Cancellable = new Cancellable {
+    override def isCancelled: Boolean = future.isCancelled
+    override def cancel(): Boolean = future.cancel(interrupt)
+  }
 
 }

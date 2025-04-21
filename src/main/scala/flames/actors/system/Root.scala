@@ -1,8 +1,8 @@
 package flames.actors.system
 
 import flames.actors.behavior.Behavior
-import flames.actors.system.Root.Protocol
-import flames.actors.{Actor, ActorEnv, StateAccess}
+import flames.actors.system.Root.*
+import flames.actors.{Actor, ActorEnv, ActorRef, StateAccess}
 
 import scala.reflect.ClassTag
 
@@ -14,6 +14,10 @@ class Root(name: String)(using ActorEnv[Protocol]) extends Actor[Protocol](name)
         val erased = cmd.erase
         val child = spawnObj(erased.factory)(using erased.tag, summon[StateAccess])
         erased.complete(child)
+        same
+      case cmd: Register[?] =>
+        selfRef.addChild(cmd.ref)
+        cmd.done()
         same
     }.ignoreSystem
 
@@ -28,9 +32,14 @@ object Root {
     val tag: ClassTag[A],
   ) extends Protocol {
 
-    def erase: Spawn[Any, Actor[Any]] =
+    inline def erase: Spawn[Any, Actor[Any]] =
       this.asInstanceOf[Spawn[Any, Actor[Any]]]
 
   }
+
+  private[actors] class Register[T](
+    val ref: ActorRef[T],
+    val done: () => Unit,
+  ) extends Protocol
 
 }

@@ -10,6 +10,8 @@ trait Monad[F[_]] {
 
     def void: F[Unit] = map(_ => ())
 
+    def as[R](value: R): F[R] = map(_ => value)
+
     def map[R](f: T => R): F[R]
 
     def flatMap[R](f: T => F[R]): F[R]

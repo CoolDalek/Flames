@@ -1,7 +1,6 @@
 package flames.actors.fiber
 
-enum ReceiveResult {
-  case EmptyQueue
+enum ProcessResult {
   case Continue
   case Break
 }

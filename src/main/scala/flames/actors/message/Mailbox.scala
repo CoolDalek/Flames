@@ -3,7 +3,6 @@ package flames.actors.message
 import flames.actors.message.SystemMessage.InternalMessage
 import flames.actors.utils.*
 
-import java.util.Queue as JQueue
 import java.util.concurrent.ConcurrentLinkedQueue
 
 trait Mailbox[T] {
@@ -27,6 +26,9 @@ trait Mailbox[T] {
 }
 
 object Mailbox {
+  trait Make {
+    def apply[T](): Mailbox[T]
+  }
 
   def fromQueue[T, User[_]: Queue, Timer[_]: Queue, Internal[_]: Queue](
     user: User[T],
@@ -55,7 +57,7 @@ object Mailbox {
       while (!queue.isEmpty) consumer(queue.poll().asInstanceOf[R])
 
     override def drainProtocol(consumer: T => Unit): Unit =
-      drain(timer, consumer);
+      drain(timer, consumer)
       drain(user, consumer)
 
     override def drainInternal(consumer: InternalMessage => Unit): Unit =
@@ -63,11 +65,12 @@ object Mailbox {
 
   end fromQueue
 
-  def concurrentLinkedQueue[T]: Mailbox[T] =
-    fromQueue(
+  val concurrentLinkedQueue: Make = new Make {
+    override def apply[T](): Mailbox[T] = fromQueue(
       new ConcurrentLinkedQueue[T](),
       new ConcurrentLinkedQueue[T](),
       new ConcurrentLinkedQueue[InternalMessage](),
     )
+  }
 
 }
