@@ -6,7 +6,7 @@ import flames.actors.{Actor, ActorEnv}
 class Question[T](
   complete: DeliveryFailure | T => Unit,
   timeout: Timeout,
-)(using ActorEnv[Any]) extends Actor[Any]("question") {
+)(using ActorEnv[Any]) extends Actor[Any]("question"):
 
   override def act(): Behavior[Any] =
     scheduleToSelf(timeout.asDuration, DeliveryFailure.TimedOut)
@@ -16,4 +16,4 @@ class Question[T](
     }.ignoreSystem
   end act
 
-}
+end Question

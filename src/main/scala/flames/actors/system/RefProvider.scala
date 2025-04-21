@@ -9,7 +9,7 @@ import flames.actors.utils.Nulls.*
 
 import scala.reflect.{ClassTag, classTag}
 
-trait RefProvider {
+trait RefProvider:
 
   def local[T](
     name: String,
@@ -17,8 +17,7 @@ trait RefProvider {
     config: ActorConfig,
   )(using env: ActorEnv[T]): LocalRef[T]
 
-}
-object RefProvider {
+object RefProvider:
 
   def default(
     unique: Unique = Unique.increment(),
@@ -50,4 +49,4 @@ object RefProvider {
 
   end default
 
-}
+end RefProvider

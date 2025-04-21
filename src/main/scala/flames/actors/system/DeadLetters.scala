@@ -7,14 +7,13 @@ import flames.actors.{Actor, ActorEnv, ActorRef, ActorSystem}
 import java.util.UUID
 import scala.util.control.NonFatal
 
-trait DeadLetters {
+trait DeadLetters:
 
   def publish[T](message: T, target: ActorPath, reason: DeliveryFailure): Unit
 
   def subscribe(handler: DeadLetters.Event => Unit): Cancellable
 
-}
-object DeadLetters {
+object DeadLetters:
 
   trait Event {
 
@@ -26,12 +25,17 @@ object DeadLetters {
 
   }
 
-  type Factory = ActorSystem => DeadLetters
-
-  case class Subscription(handler: Event => Unit, cancel: Cancellable.Signal)
+  case class Subscription(
+    handler: Event => Unit,
+    cancel: Cancellable.Signal,
+  )
 
   enum Protocol {
-    case Dead(message: Any, target: ActorPath, reason: DeliveryFailure) extends Protocol with Event
+    case DeadMessage(
+      message: Any,
+      target: ActorPath,
+      reason: DeliveryFailure,
+    ) extends Protocol with Event
     case Subscribe(token: Unique, sub: Subscription)
     case Unsubscribe(token: Unique)
   }
@@ -44,7 +48,7 @@ object DeadLetters {
 
       override def publish[T](message: T, target: ActorPath, reason: DeliveryFailure): Unit =
         self.tell(
-          Dead(message, target, reason),
+          DeadMessage(message, target, reason),
         )
 
       override def subscribe(handler: Event => Unit): Cancellable =
@@ -66,7 +70,7 @@ object DeadLetters {
 
       override protected def act(): Behavior[Protocol] =
         receive {
-          case event: Dead =>
+          case event: DeadMessage =>
             subscriptions.foreach { (_, sub) =>
               try sub.handler(event)
               catch case NonFatal(exc) =>
@@ -86,4 +90,4 @@ object DeadLetters {
     (impl, impl.self)
   end default
 
-}
+end DeadLetters

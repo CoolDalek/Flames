@@ -9,7 +9,7 @@ import flames.actors.system.{ActorConfig, Cancellable}
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.ClassTag
 
-trait Actor[T](using env: ActorEnv[T])(name: String, config: ActorConfig = env.system.config) {
+trait Actor[T](using env: ActorEnv[T])(name: String, config: ActorConfig = env.system.config):
   import behavior.Builder
 
   export Builder.{ReceiveProtocol, ReceiveSystem}
@@ -70,4 +70,4 @@ trait Actor[T](using env: ActorEnv[T])(name: String, config: ActorConfig = env.s
   protected def unwatch[A](ref: ActorRef[A]): Unit =
     ref.unwatchRequest(selfRef)
 
-}
+end Actor

@@ -2,7 +2,7 @@ package flames.actors.message
 
 import scala.concurrent.duration.*
 
-object Timeout {
+object Timeout:
   opaque type Timeout = FiniteDuration
 
   object limit
@@ -20,7 +20,5 @@ object Timeout {
   }
 
   inline def fromDuration(duration: FiniteDuration): Timeout = duration
-
-}
 
 export Timeout.Timeout

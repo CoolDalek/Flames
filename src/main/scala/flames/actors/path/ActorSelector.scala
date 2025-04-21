@@ -8,7 +8,7 @@ import scala.reflect.*
 case class ActorSelector(
   name: String,
   unique: Unique | Null = null,
-) {
+):
 
   def matches(path: ActorPath): Boolean =
     path.name == name && unique.mapOrElse(
@@ -20,8 +20,7 @@ case class ActorSelector(
 
   def /(that: Vector[ActorSelector]): Vector[ActorSelector] = that.prepended(this)
 
-}
-object ActorSelector {
+object ActorSelector:
 
   extension (self: Vector[ActorSelector]) {
 
@@ -31,4 +30,4 @@ object ActorSelector {
 
   }
 
-}
+end ActorSelector

@@ -6,7 +6,7 @@ import flames.actors.{Actor, ActorEnv, ActorRef, StateAccess}
 
 import scala.reflect.ClassTag
 
-class Root(name: String)(using ActorEnv[Protocol]) extends Actor[Protocol](name) {
+class Root(name: String)(using ActorEnv[Protocol]) extends Actor[Protocol](name):
 
   override protected def act(): Behavior[Protocol] =
     receive {
@@ -21,8 +21,7 @@ class Root(name: String)(using ActorEnv[Protocol]) extends Actor[Protocol](name)
         same
     }.ignoreSystem
 
-}
-object Root {
+object Root:
 
   sealed trait Protocol
 
@@ -42,4 +41,4 @@ object Root {
     val done: () => Unit,
   ) extends Protocol
 
-}
+end Root

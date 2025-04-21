@@ -5,7 +5,7 @@ import flames.actors.utils.*
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
-trait Mailbox[T] {
+trait Mailbox[T]:
 
   def isEmpty: Boolean
 
@@ -23,9 +23,7 @@ trait Mailbox[T] {
 
   def drainInternal(consumer: InternalMessage => Unit): Unit
 
-}
-
-object Mailbox {
+object Mailbox:
   trait Make {
     def apply[T](): Mailbox[T]
   }
@@ -73,4 +71,4 @@ object Mailbox {
     )
   }
 
-}
+end Mailbox

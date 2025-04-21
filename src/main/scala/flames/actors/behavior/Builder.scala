@@ -6,8 +6,7 @@ import scala.annotation.targetName
 import scala.util.control.NonFatal
 
 sealed trait Builder[-Protocol, -ReceiveType]
-
-object Builder {
+object Builder:
 
   case class Receive[Protocol, ReceiveType](
     act: Receiver[Protocol, ReceiveType],
@@ -82,4 +81,4 @@ object Builder {
       case Ignore => Receiver.Ignore
   end interpret
 
-}
+end Builder

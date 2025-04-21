@@ -2,7 +2,7 @@ package flames.actors.pattern
 
 import flames.actors.utils.SummonerK
 
-trait Monad[F[_]] {
+trait Monad[F[_]]:
 
   def pure[T](value: T): F[T]
 
@@ -18,5 +18,4 @@ trait Monad[F[_]] {
 
   }
 
-}
 object Monad extends SummonerK[Monad]

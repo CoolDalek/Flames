@@ -4,7 +4,7 @@ import flames.actors.*
 import flames.actors.path.*
 import flames.actors.utils.*
 
-trait Children {
+trait Children:
 
   def add(ref: ErasedRef): Unit
 
@@ -14,8 +14,7 @@ trait Children {
 
   def search(by: ActorSelector): Set[ErasedRef]
 
-}
-object Children {
+object Children:
   import scala.collection.concurrent.TrieMap
   import scala.collection.mutable
 
@@ -73,4 +72,4 @@ object Children {
     override protected def makeMap[K, V]: mutable.Map[K, V] = TrieMap.empty
   }
 
-}
+end Children

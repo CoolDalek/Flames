@@ -3,7 +3,7 @@ package flames.actors.system
 import java.util.concurrent.{ScheduledFuture, ScheduledThreadPoolExecutor, TimeUnit}
 import scala.concurrent.duration.FiniteDuration
 
-trait Scheduler {
+trait Scheduler:
 
   def delayed(delay: FiniteDuration)(runnable: Runnable): Cancellable
 
@@ -20,9 +20,8 @@ trait Scheduler {
 
   def atFixedRate(period: FiniteDuration)(runnable: Runnable): Cancellable =
     atFixedRate(period, period)(runnable)
-
-}
-object Scheduler {
+  
+object Scheduler:
 
   def java(
     prefix: String,
@@ -78,4 +77,4 @@ object Scheduler {
 
   end java
 
-}
+end Scheduler

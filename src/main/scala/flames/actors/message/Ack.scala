@@ -2,14 +2,13 @@ package flames.actors.message
 
 import flames.actors.pattern.Monad
 
-sealed trait Ack[+T] {
+sealed trait Ack[+T]:
 
   def map[R](f: T => R): Ack[R]
 
   def flatMap[R](f: T => Ack[R]): Ack[R]
 
-}
-object Ack {
+object Ack:
 
   case class Delivered[T](response: T) extends Ack[T] {
     override def map[R](f: T => R): Ack[R] = Delivered(f(response))
@@ -38,4 +37,4 @@ object Ack {
 
   def connection(exc: Throwable): Undelivered = Ack.Undelivered(DeliveryFailure.Connection(exc))
 
-}
+end Ack

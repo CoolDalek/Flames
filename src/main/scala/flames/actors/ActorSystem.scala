@@ -69,7 +69,6 @@ trait ActorSystem extends ExecutionContext:
     message: T,
   ): Cancellable
 
-end ActorSystem
 object ActorSystem:
 
   val DefaultConfig: ActorConfig = ActorConfig(

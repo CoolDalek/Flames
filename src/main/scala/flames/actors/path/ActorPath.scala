@@ -4,7 +4,7 @@ import flames.actors.path.ActorPath.*
 
 import java.util.Objects
 
-sealed trait ActorPath {
+sealed trait ActorPath:
 
   def unique: Unique
 
@@ -12,8 +12,7 @@ sealed trait ActorPath {
 
   def parent: ActorPath
 
-}
-private[actors] object ActorPath {
+private[actors] object ActorPath:
 
   case class Child(
     parent: ActorPath,
@@ -64,4 +63,4 @@ private[actors] object ActorPath {
       port = port,
     )
 
-}
+end ActorPath

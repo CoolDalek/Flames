@@ -11,7 +11,7 @@ case class ActorEnv[T] private[actors](
   system: ActorSystem,
   tag: ClassTag[T],
 )
-object ActorEnv {
+object ActorEnv:
 
   private[actors] inline def root[T](using
     tag: ClassTag[T],
@@ -23,4 +23,4 @@ object ActorEnv {
     system: ActorSystem,
   ): ActorEnv[T] = ActorEnv(parent, system, tag)
 
-}
+end ActorEnv

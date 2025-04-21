@@ -23,7 +23,7 @@ class Fiber[T](
   val parent: Parent,
   val system: ActorSystem,
   val path: ActorPath,
-) extends AtomicReference[State](Idle) with Runnable {
+) extends AtomicReference[State](Idle), Runnable:
 
   export children.{
     add as addChild,
@@ -192,4 +192,4 @@ class Fiber[T](
     mailbox.drainProtocol(deadLetter)
   end reportStop
 
-}
+end Fiber

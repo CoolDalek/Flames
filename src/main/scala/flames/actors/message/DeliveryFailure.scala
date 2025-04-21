@@ -3,7 +3,7 @@ package flames.actors.message
 enum DeliveryFailure(
   message: String,
   reason: Throwable | Null = null,
-) extends RuntimeException(message, reason) {
+) extends RuntimeException(message, reason):
 
   final override def fillInStackTrace(): Throwable =
     setStackTrace {
@@ -19,4 +19,4 @@ enum DeliveryFailure(
   case Connection(reason: Throwable) extends DeliveryFailure("Connection", reason)
   case DeadLetter extends DeliveryFailure("DeadLetter")
 
-}
+end DeliveryFailure

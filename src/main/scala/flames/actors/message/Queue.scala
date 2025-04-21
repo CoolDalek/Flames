@@ -3,7 +3,7 @@ package flames.actors.message
 import java.util.Queue as JQueue
 import scala.collection.mutable.Queue as SQueue
 
-trait Queue[C[_]] {
+trait Queue[C[_]]:
 
   extension [T](self: C[T]) {
 
@@ -15,9 +15,7 @@ trait Queue[C[_]] {
 
   }
 
-}
-
-object Queue {
+object Queue:
 
   given [C[X] <: JQueue[X]]: Queue[C] with
     extension [T](self: C[T])
@@ -35,4 +33,4 @@ object Queue {
       def isEmpty: Boolean = self.isEmpty
   end given
 
-}
+end Queue

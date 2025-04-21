@@ -6,12 +6,11 @@ import java.io.{PrintStream, PrintWriter, StringWriter}
 import java.time.{Clock, Instant}
 
 // TODO: static vs dynamic contexts, encoders, layouts, TF, etc
-trait Logger {
+trait Logger:
 
   def log(event: Logger.Event): Unit
 
-}
-object Logger {
+object Logger:
 
   enum Level {
     case Trace
@@ -74,4 +73,4 @@ object Logger {
 
   end Fallback
 
-}
+end Logger

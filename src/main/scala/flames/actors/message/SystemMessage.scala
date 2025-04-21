@@ -5,8 +5,7 @@ import flames.actors.message.SystemMessage.InternalMessage
 import flames.actors.path.*
 
 sealed trait SystemMessage extends InternalMessage
-
-object SystemMessage {
+object SystemMessage:
 
   case class ChildStopped(path: ActorPath, reason: StopReason) extends SystemMessage
 
@@ -30,4 +29,4 @@ object SystemMessage {
 
   private[actors] case class UnwatchRequest(ref: ErasedRef) extends InternalMessage
 
-}
+end SystemMessage
