@@ -32,12 +32,12 @@ class Fiber[T](
 
   private val watchers = mutable.Set.empty[ErasedRef]
 
-  override def run(): Unit = {
+  override def run(): Unit =
     //There is no way State is not Running,
     // but we need to synchronize the actor's data,
     // so we just pretend to work here.
     if (get() == Running) executionLoop()
-  }
+  end run
 
   private inline def scheduleRun(): Unit =
     system.execute(this)
@@ -45,12 +45,12 @@ class Fiber[T](
   private def executionLoop(): Unit =
     var loop = true
     var yieldCount = autoYield
-    while (loop) {
-      if (yieldCount > 0) {
+    while loop do
+      if yieldCount > 0 then
 
         def processMail[R](poll: => R | Null, process: R => ProcessResult)(onEmpty: => Unit): Unit =
           val msg = poll
-          if (null == msg) onEmpty else
+          if null == msg then onEmpty else
             process(msg.asInstanceOf[R]) match
               case Continue =>
                 yieldCount -= 1
@@ -75,21 +75,21 @@ class Fiber[T](
                   if (!continue) loop = false
             }
           }
-        catch {
+        catch
           case NonFatal(exc) =>
             val reason = StopReason.Failure(exc)
             set(Stopped(reason))
             loop = false
             reportStop(reason)
-        }
+        end try
 
-      } else {
+      else
         loop = false
         //Change Running from Running just for synchronization.
         set(Running)
         scheduleRun()
-      }
-    }
+      end if
+    end while
   end executionLoop
 
   private def act[R](get: Receive[T] => R => Behavior[T], msg: R): ProcessResult =
@@ -136,13 +136,14 @@ class Fiber[T](
         import flames.actors.path.Selector.Protocol.*
         val set = children.search(selector(index))
         val next = index + 1
-        if (selector.length > next)
-          if (set.isEmpty) replyTo.tell(NoResults(path))
-          else {
+        if selector.length > next then
+          if set.isEmpty
+          then replyTo.tell(NoResults(path))
+          else
             val request = FindChild(selector, next, replyTo)
             set.foreach(_.internalTell(request))
             replyTo.tell(Reroute(path, set))
-          }
+          end if
         else if (set.isEmpty) replyTo.tell(NoResults(path))
         else replyTo.tell(Result(path, set))
         Continue
@@ -153,13 +154,14 @@ class Fiber[T](
       case Stopped(_) =>
         Ack.Undelivered(DeliveryFailure.DeadLetter)
       case Idle =>
-        if (push(msg)) {
+        if push(msg) then
           val run = compareAndSet(Idle, Running)
           if (run) scheduleRun()
           Ack.Ok
-        } else Ack.Overflow
+        else Ack.Overflow
       case Running =>
-        if (push(msg)) Ack.Ok
+        if push(msg)
+        then Ack.Ok
         else Ack.Overflow
   end tell
 
