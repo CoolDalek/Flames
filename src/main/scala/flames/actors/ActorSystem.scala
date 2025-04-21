@@ -141,13 +141,17 @@ object ActorSystem:
 
     override def deadLetters: DeadLetters = deadQueue
     override val selector: Selector = Selector(this, Client.noop)
+    
+    private class Timer[T](addr: ActorRef[T], envelope: T) extends Runnable:
+      override def run(): Unit = addr.timerTell(envelope)
+
 
     override def scheduleMessage[T](
       delay: FiniteDuration,
       to: ActorRef[T],
       message: T,
     ): Cancellable =
-      scheduler.delayed(delay)(() => to.tell(message))
+      scheduler.delayed(delay)(Timer(to, message))
 
     override def scheduleMessage[T](
       delay: FiniteDuration,
@@ -155,7 +159,7 @@ object ActorSystem:
       to: ActorRef[T],
       message: T,
     ): Cancellable =
-      scheduler.withFixedDelay(delay, period)(() => to.tell(message))
+      scheduler.withFixedDelay(delay, period)(Timer(to, message))
 
   }
 
