@@ -122,7 +122,7 @@ object ActorSystem:
       reporter,
     )
 
-  private class DefaultSystem(override val name: String) extends ActorSystem {
+  private class DefaultSystem(override val name: String) extends ActorSystem:
     override val scheduler: Scheduler = defaultScheduler(name)
     override val blocker: ExecutionContext = defaultBlocker(name)
     private val cpu = defaultCpu(name)
@@ -145,7 +145,6 @@ object ActorSystem:
     private class Timer[T](addr: ActorRef[T], envelope: T) extends Runnable:
       override def run(): Unit = addr.timerTell(envelope)
 
-
     override def scheduleMessage[T](
       delay: FiniteDuration,
       to: ActorRef[T],
@@ -161,7 +160,7 @@ object ActorSystem:
     ): Cancellable =
       scheduler.withFixedDelay(delay, period)(Timer(to, message))
 
-  }
+  end DefaultSystem
 
   def default[F[_]: Wait](
     name: String,
